@@ -155,6 +155,15 @@ Por isso o lugar da foto no cartão recebe **ícone de categoria** (`app/src/uti
 
 Os tipos do Node ficam **só** em `tsconfig.test.json`; o `tsconfig.json` exclui `*.test.ts`. Sem essa separação o código do app passaria a enxergar `fs` e `process`, que não existem no aparelho.
 
+## Recado flutuante vs. faixa na tela
+
+Duas formas de falar com o usuário, e a escolha não é de estilo:
+
+- **`useAcao` → toast** (`components/ui/Toast.tsx`): resposta a um toque — erro da API, alerta que veio junto do sucesso. Flutua preso à janela porque a tela **rola**: a faixa nascia no topo do conteúdo e quem tocou um botão no fim da lista recebia a resposta fora de vista. Nenhuma tela precisa renderizar o erro: o hook empurra sozinho, e esquecer disso era o jeito mais fácil de uma falha passar calada.
+- **`Aviso` → faixa inline**: estado permanente da tela — "3 itens no limite", "nenhum banco conectado", o motivo de um formulário estar vazio. Não é reação a toque, é condição; sumir em 5 s apagaria informação que precisa continuar à vista.
+
+Não usar modal para confirmação de rotina: exigir um toque para dispensar "saiu do alerta" é pedir trabalho por nada. Modal se justifica quando há decisão a tomar.
+
 ## Cor em gráfico
 
 Categoria de gasto e matéria são **nominais**: a barra é de uma cor só, nunca uma cor por item — colorir por valor gasta o canal de identidade recodificando o que o comprimento já mostra.
