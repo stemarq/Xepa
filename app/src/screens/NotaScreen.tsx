@@ -24,6 +24,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Feather } from '@expo/vector-icons';
 import * as despensaApi from '@/services/api/despensa';
 import { useAcao } from '@/hooks/useAcao';
+import { useToast } from '@/components/ui/Toast';
 import { TelaModulo } from '@/components/common/TelaModulo';
 import { Secao } from '@/components/common/Secao';
 import { Aviso } from '@/components/ui/Aviso';
@@ -56,10 +57,10 @@ const ITEM_VAZIO: ItemDaNota = { descricao: '', quantidade: '1', valorUnitario: 
 export function NotaScreen() {
   const router = useRouter();
   const acao = useAcao();
+  const { mostrar } = useToast();
 
   const [chave, setChave] = useState<string | null>(null);
   const [chaveDigitada, setChaveDigitada] = useState('');
-  const [erroDeLeitura, setErroDeLeitura] = useState<string | null>(null);
   const [camerAberta, setCameraAberta] = useState(false);
 
   const [local, setLocal] = useState('');
@@ -76,7 +77,6 @@ export function NotaScreen() {
    * o usuário já ter digitado tudo apagaria o trabalho dele.
    */
   async function usarLeitura(leitura: LeituraDeChave) {
-    setErroDeLeitura(null);
     setChave(leitura.chave);
     setConsultando(true);
     setAvisoDaConsulta(null);
@@ -117,7 +117,9 @@ export function NotaScreen() {
     const leitura = extrairChaveDeAcesso(conteudo);
     if (!leitura) {
       // Não fecha a câmera: quase sempre é mira, e fechar obrigaria a recomeçar.
-      setErroDeLeitura('Esse código não é de uma nota fiscal. Aponte para o QR da NFC-e.');
+      // Toast e não faixa: a câmera ocupa a tela, e a faixa nasceria acima
+      // dela, fora de vista justamente de quem está mirando.
+      mostrar('Esse código não é de uma nota fiscal. Aponte para o QR da NFC-e.', 'atencao');
       return;
     }
     setCameraAberta(false);
@@ -127,7 +129,7 @@ export function NotaScreen() {
   function confirmarChaveDigitada() {
     const leitura = extrairChaveDeAcesso(chaveDigitada);
     if (!leitura) {
-      setErroDeLeitura('A chave de acesso tem 44 dígitos.');
+      mostrar('A chave de acesso tem 44 dígitos.', 'atencao');
       return;
     }
     void usarLeitura(leitura);
@@ -167,9 +169,9 @@ export function NotaScreen() {
       modulo="despensa"
       dentroDasAbas={false}
     >
-      {acao.erro ? <Aviso mensagem={acao.erro} tom="erro" /> : null}
-      {erroDeLeitura ? <Aviso mensagem={erroDeLeitura} tom="atencao" /> : null}
-      {/* Não é erro: é o motivo de a lista ter vindo vazia, e o que fazer. */}
+      {/* Não é erro: é o motivo de a lista ter vindo vazia, e o que fazer.
+          Fica na tela, e não em recado passageiro, porque explica o formulário
+          em branco que a pessoa tem à frente. */}
       {avisoDaConsulta ? <Aviso mensagem={avisoDaConsulta} tom="atencao" /> : null}
 
       {consultando ? (
@@ -184,10 +186,7 @@ export function NotaScreen() {
       {chave === null ? (
         <PassoDaChave
           cameraAberta={camerAberta}
-          aoAbrirCamera={() => {
-            setErroDeLeitura(null);
-            setCameraAberta(true);
-          }}
+          aoAbrirCamera={() => setCameraAberta(true)}
           aoFecharCamera={() => setCameraAberta(false)}
           aoLerCodigo={aoLerCodigo}
           chaveDigitada={chaveDigitada}

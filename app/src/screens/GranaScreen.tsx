@@ -57,8 +57,6 @@ export function GranaScreen() {
       erro={painel.erro}
       aoRecarregar={painel.recarregar}
     >
-      {acao.erro ? <Aviso mensagem={acao.erro} tom="erro" /> : null}
-      {acao.aviso ? <Aviso mensagem={acao.aviso} tom="atencao" /> : null}
 
       {painel.dados ? (
         <>

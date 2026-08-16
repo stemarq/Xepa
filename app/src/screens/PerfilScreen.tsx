@@ -58,7 +58,6 @@ export function PerfilScreen() {
       dentroDasAbas={false}
       saida="fechar"
     >
-      {acao.erro ? <Aviso mensagem={acao.erro} tom="erro" /> : null}
 
       <View style={estilos.identidade}>
         <Avatar avatar={perfil?.avatar} nome={perfil?.nome} tamanho={64} />

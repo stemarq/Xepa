@@ -89,8 +89,6 @@ export function BancosScreen() {
       aoRecarregar={painel.recarregar}
       dentroDasAbas={false}
     >
-      {acao.erro ? <Aviso mensagem={acao.erro} tom="erro" /> : null}
-      {acao.aviso ? <Aviso mensagem={acao.aviso} tom="sucesso" /> : null}
 
       <Aviso
         tom="neutro"

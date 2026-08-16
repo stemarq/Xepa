@@ -45,8 +45,6 @@ export function CabecaScreen() {
       erro={panorama.erro}
       aoRecarregar={panorama.recarregar}
     >
-      {acao.erro ? <Aviso mensagem={acao.erro} tom="erro" /> : null}
-      {acao.aviso ? <Aviso mensagem={acao.aviso} tom="sucesso" /> : null}
 
       {panorama.dados ? (
         <Cartao acento={ACENTO}>

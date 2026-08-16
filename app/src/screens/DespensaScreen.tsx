@@ -141,9 +141,6 @@ export function DespensaScreen() {
         </ScrollView>
       ) : null}
 
-      {acao.erro ? <Aviso mensagem={acao.erro} tom="erro" /> : null}
-      {acao.aviso ? <Aviso mensagem={acao.aviso} tom="atencao" /> : null}
-
       {emAlerta.length > 0 ? (
         <Aviso
           tom="atencao"

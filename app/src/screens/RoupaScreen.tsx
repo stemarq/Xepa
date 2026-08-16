@@ -63,8 +63,6 @@ export function RoupaScreen() {
       erro={painel.erro}
       aoRecarregar={painel.recarregar}
     >
-      {acao.erro ? <Aviso mensagem={acao.erro} tom="erro" /> : null}
-      {acao.aviso ? <Aviso mensagem={acao.aviso} tom="atencao" /> : null}
 
       {painel.dados?.alertas.mensagem ? (
         <Aviso tom="atencao" mensagem={painel.dados.alertas.mensagem} />

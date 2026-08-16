@@ -18,6 +18,7 @@ import {
   Poppins_600SemiBold,
 } from '@expo-google-fonts/poppins';
 import { SessaoProvider } from '@/contexts/SessaoContext';
+import { ToastProvider } from '@/components/ui/Toast';
 import { cores } from '@/theme';
 
 void SplashScreen.preventAutoHideAsync();
@@ -38,25 +39,31 @@ export default function LayoutRaiz() {
 
   return (
     <SafeAreaProvider>
-      <SessaoProvider>
-        <StatusBar style="dark" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: cores.fundo },
-          }}
-        >
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(banca)" />
-          <Stack.Screen name="perfil" options={{ presentation: 'modal' }} />
-          {/* Detalhe da matéria (SD20): empilha sobre as abas, não é uma delas. */}
-          <Stack.Screen name="materia/[id]" />
-          {/* Open Finance (SD25–SD27): entra pela Grana, fora das abas. */}
-          <Stack.Screen name="bancos" />
-          {/* Leitura de nota (SD06): entra pela Despensa, fora das abas. */}
-          <Stack.Screen name="nota" />
-        </Stack>
-      </SessaoProvider>
+      {/*
+        Acima do Stack: o recado precisa sobreviver à troca de rota — a ação
+        que falhou pode ser a última coisa antes de sair da tela.
+      */}
+      <ToastProvider>
+        <SessaoProvider>
+          <StatusBar style="dark" />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: cores.fundo },
+            }}
+          >
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(banca)" />
+            <Stack.Screen name="perfil" options={{ presentation: 'modal' }} />
+            {/* Detalhe da matéria (SD20): empilha sobre as abas, não é uma delas. */}
+            <Stack.Screen name="materia/[id]" />
+            {/* Open Finance (SD25–SD27): entra pela Grana, fora das abas. */}
+            <Stack.Screen name="bancos" />
+            {/* Leitura de nota (SD06): entra pela Despensa, fora das abas. */}
+            <Stack.Screen name="nota" />
+          </Stack>
+        </SessaoProvider>
+      </ToastProvider>
     </SafeAreaProvider>
   );
 }
