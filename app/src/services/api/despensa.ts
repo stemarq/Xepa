@@ -4,6 +4,7 @@ import type {
   NotaLida,
   Produto,
   ResultadoConsumo,
+  ResultadoEntrada,
   ResultadoDaConsulta,
   ResultadoDaNota,
 } from '@/types/api';
@@ -46,6 +47,19 @@ export function configurarAlerta(
   return requisitar<{ produto: Produto }>(`/despensa/produtos/${produtoId}/monitoramento`, {
     metodo: 'PUT',
     corpo: { monitorado, quantidadeMinima },
+  });
+}
+
+/**
+ * RF010 — entrada de estoque sem nota e sem preço.
+ *
+ * Para o que entrou na despensa sem ter sido comprado: presente, sobra,
+ * rateio. Não vira gasto — o que não custou não é despesa.
+ */
+export function registrarEntrada(produtoId: number, quantidade: number) {
+  return requisitar<ResultadoEntrada>(`/despensa/produtos/${produtoId}/entrada`, {
+    metodo: 'POST',
+    corpo: { quantidade },
   });
 }
 

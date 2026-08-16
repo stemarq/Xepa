@@ -55,6 +55,12 @@ export interface ResultadoConsumo {
   alertaReposicao: { mensagem: string } | null;
 }
 
+export interface ResultadoEntrada {
+  produto: Produto;
+  /** RN08 — a reposição tirou o item do alerta. */
+  alertaResolvido: boolean;
+}
+
 // ---------- Grana ----------
 
 export type TipoTransacao = 'entrada' | 'saida';
