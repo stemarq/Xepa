@@ -224,9 +224,15 @@ export function DespensaScreen() {
               aoTocar={() =>
                 setEmBaixa((atual) => (atual?.id === produto.id ? null : produto))
               }
+              // Uma unidade, ou o resto quando sobra menos que uma.
+              //
+              // Baixar 1 fixo deixava o botão habilitado e sempre falhando em
+              // item fracionado — 0,23 kg de caqui nunca tem uma unidade para
+              // tirar, e a RN07 recusava toda vez. Tirar o que restou é o que a
+              // pessoa quer dizer ao apertar "menos" num item que está no fim.
               aoAgir={
                 produto.quantidadeAtual > 0 && !acao.executando
-                  ? () => void consumir(produto, 1)
+                  ? () => void consumir(produto, Math.min(1, produto.quantidadeAtual))
                   : undefined
               }
               iconeAcao="minus"
@@ -310,8 +316,11 @@ function PainelDeBaixa({
   aoConsumir(quantidade: number): void;
   aoRepor(quantidade: number): void;
 }) {
-  const [valor, setValor] = useState('1');
+  // Começa no que dá para tirar, não em 1: num item com 0,23 o padrão fixo
+  // garantiria erro antes mesmo de a pessoa digitar qualquer coisa.
+  const [valor, setValor] = useState(() => quantidade(Math.min(1, produto.quantidadeAtual)));
   const numero = Number(valor.replace(',', '.'));
+  const passaDoEstoque = numero > produto.quantidadeAtual;
 
   return (
     <Cartao acento={cores.modulo.despensa}>
@@ -332,10 +341,19 @@ function PainelDeBaixa({
           titulo="Dar baixa"
           compacto
           carregando={ocupado}
-          desabilitado={!(numero > 0)}
+          // RN07 continua sendo do servidor; aqui só se evita oferecer um
+          // botão que já se sabe que vai falhar.
+          desabilitado={!(numero > 0) || passaDoEstoque}
           aoTocar={() => aoConsumir(numero)}
         />
       </View>
+
+      {passaDoEstoque ? (
+        <Texto variante="legenda" cor={cores.tintaMedia}>
+          Há {quantidade(produto.quantidadeAtual, produto.unidade)} em estoque. Para somar, use
+          o botão abaixo.
+        </Texto>
+      ) : null}
       {/*
         RF010 — repor sem nota, para o que entrou sem ter sido comprado:
         presente, sobra, rateio. Não pede preço, e por isso não vira gasto: o

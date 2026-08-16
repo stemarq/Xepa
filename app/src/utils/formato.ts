@@ -57,10 +57,18 @@ export function duracao(minutos: number): string {
   return resto === 0 ? `${horas}h` : `${horas}h${String(resto).padStart(2, '0')}`;
 }
 
-/** Quantidade de estoque sem casas decimais inúteis: 2.000 -> "2". */
+/**
+ * Quantidade de estoque sem casas decimais inúteis: 2.000 -> "2".
+ *
+ * Vírgula, não ponto: o campo em que a pessoa digita usa vírgula, e mostrar
+ * "0.23" onde ela escreveu "0,23" faz o app parecer que entendeu outro número.
+ * Três casas é o limite da coluna (`NUMERIC(12,3)`) — mais dígitos aqui
+ * mostrariam precisão que o banco não guarda.
+ */
 export function quantidade(valor: number, unidade?: string): string {
   const numero = Number.isInteger(valor) ? String(valor) : String(Number(valor.toFixed(3)));
-  return unidade ? `${numero} ${unidade}` : numero;
+  const comVirgula = numero.replace('.', ',');
+  return unidade ? `${comVirgula} ${unidade}` : comVirgula;
 }
 
 /** Primeiro nome, para a saudação da banca. */

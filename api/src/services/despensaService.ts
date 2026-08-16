@@ -5,6 +5,7 @@ import * as categoriaRepository from '../repositories/categoriaRepository.js';
 import * as notaFiscalRepository from '../repositories/notaFiscalRepository.js';
 import * as produtoRepository from '../repositories/produtoRepository.js';
 import { badRequest, conflict, notFound, unprocessable } from '../utils/errors.js';
+import { quantidadeEmTexto } from '../utils/formato.js';
 
 /**
  * Módulo 2 — Despensa (controle de estoque).
@@ -187,7 +188,7 @@ export async function registrarConsumo(
   // RN07 — a baixa não pode deixar a quantidade negativa
   if (quantidade > produto.quantidade_atual) {
     throw unprocessable(
-      `Estoque insuficiente: há ${produto.quantidade_atual} ${produto.unidade} de "${produto.nome}".`,
+      `Estoque insuficiente: há ${quantidadeEmTexto(produto.quantidade_atual)} ${produto.unidade} de "${produto.nome}".`,
     );
   }
 
@@ -206,8 +207,8 @@ export async function registrarConsumo(
     alertaReposicao: estaEmAlerta(atualizado)
       ? {
           mensagem:
-            `"${atualizado.nome}" está em ${atualizado.quantidade_atual} ${atualizado.unidade}, ` +
-            `no limite de ${atualizado.quantidade_minima} que você definiu. Hora de repor.`,
+            `"${atualizado.nome}" está em ${quantidadeEmTexto(atualizado.quantidade_atual)} ${atualizado.unidade}, ` +
+            `no limite de ${quantidadeEmTexto(atualizado.quantidade_minima ?? 0)} que você definiu. Hora de repor.`,
         }
       : null,
   };

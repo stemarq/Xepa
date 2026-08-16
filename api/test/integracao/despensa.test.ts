@@ -127,6 +127,44 @@ describe('SD07 — cadastro e edição manual (RF009)', () => {
   });
 });
 
+describe('RF010 — quantidade fracionada', () => {
+  it('baixa fracionada não perde precisão', async () => {
+    // Item pesado na balança: a nota traz 0,26 kg, e o consumo é em fração.
+    const produto = await criarProduto({ nome: 'Caqui', unidade: 'kg', quantidadeInicial: 0.26 });
+
+    const resposta = await conta.cliente.post(`/despensa/produtos/${produto.id}/consumo`, {
+      quantidade: 0.23,
+    });
+
+    assert.equal(resposta.status, 200);
+    // Exato, não 0.030000000000000002: NUMERIC é decimal, não binário.
+    assert.equal(resposta.corpo.produto.quantidadeAtual, 0.03);
+  });
+
+  it('a mensagem de estoque insuficiente fala em vírgula, não em ponto', async () => {
+    // O campo pede "0,23"; um erro dizendo "0.03" parece falar de outro número.
+    const produto = await criarProduto({ nome: 'Caqui', unidade: 'kg', quantidadeInicial: 0.03 });
+
+    const resposta = await conta.cliente.post(`/despensa/produtos/${produto.id}/consumo`, {
+      quantidade: 1,
+    });
+
+    assert.equal(resposta.status, 422);
+    assert.match(resposta.corpo.erro.mensagem, /0,03 kg/);
+  });
+
+  it('consumir o resto exato zera o item', async () => {
+    const produto = await criarProduto({ nome: 'Caqui', unidade: 'kg', quantidadeInicial: 0.23 });
+
+    const resposta = await conta.cliente.post(`/despensa/produtos/${produto.id}/consumo`, {
+      quantidade: 0.23,
+    });
+
+    assert.equal(resposta.status, 200);
+    assert.equal(resposta.corpo.produto.quantidadeAtual, 0);
+  });
+});
+
 describe('RF010 — entrada sem nota e sem preço', () => {
   it('repõe o estoque de um item que já existe', async () => {
     // O caso que motivou a rota: ganhar um produto. Sem ela, a única forma de
