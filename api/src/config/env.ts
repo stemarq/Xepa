@@ -55,6 +55,27 @@ export const env = {
    */
   instituicaoIntegracao: process.env.INSTITUICAO_INTEGRACAO ?? '',
 
+  /**
+   * Qual commit está no ar.
+   *
+   * Existe para responder por fora "a API já subiu?", pergunta que aparece a
+   * cada deploy: sem isto, `/saude` diz que o serviço responde mas não diz
+   * qual versão, e todas as demais rotas exigem sessão — até as inexistentes,
+   * porque o `autenticar` roda antes do roteamento e devolve 401 no lugar de
+   * 404. Não havia como distinguir "rota nova ainda não subiu" de "portal
+   * fora do ar" olhando de fora.
+   *
+   * `RENDER_GIT_COMMIT` é injetada pelo Render; as outras cobrem outros
+   * provedores e o build local. Vazio não é erro: rodar sem saber o commit é
+   * o caso normal em desenvolvimento.
+   */
+  commit:
+    process.env.RENDER_GIT_COMMIT ??
+    process.env.GIT_COMMIT ??
+    process.env.SOURCE_VERSION ??
+    '',
+  ramo: process.env.RENDER_GIT_BRANCH ?? process.env.GIT_BRANCH ?? '',
+
   mail: {
     host: process.env.SMTP_HOST ?? '',
     port: num('SMTP_PORT', 587),

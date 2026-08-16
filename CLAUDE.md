@@ -103,6 +103,8 @@ A API está publicada em **https://xepa.onrender.com/api** (Render, plano free) 
 
 O plano free hiberna após ~15 min sem uso: a primeira chamada depois disso demora quase um minuto e, no app, parece travamento.
 
+**Saber se um deploy subiu**: `curl -s https://xepa.onrender.com/api/saude | jq .commit` e comparar com `git log --oneline -1`. É a única rota pública — as outras exigem sessão, e rota inexistente sob um módulo devolve 401 (o `autenticar` roda antes do roteamento), então 401 não prova nem que a rota existe nem que não existe.
+
 Para desenvolver contra a API local, troque `EXPO_PUBLIC_API_URL` e **reinicie o Metro** — o valor é embutido no bundle, não lido em execução.
 
 ## Conectar num Postgres de verdade

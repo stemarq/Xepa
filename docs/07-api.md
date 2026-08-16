@@ -29,7 +29,17 @@ Rotas protegidas exigem `Authorization: Bearer <token>`. O token vem do login e 
 ## Saúde
 
 ### `GET /api/saude`
-Verifica a API e a conexão com o banco. → `200 { "status": "ok", "banco": "ok" }`
+Verifica a API, a conexão com o banco e **qual versão está no ar**.
+
+→ `200 { "status": "ok", "banco": "ok", "ambiente": "production", "commit": "7299eb9", "ramo": "main" }`
+
+`commit` e `ramo` vêm de `RENDER_GIT_COMMIT`/`RENDER_GIT_BRANCH`, injetadas pelo provedor; fora de um deploy vêm `null`, que é "não sei" e não "sem commit".
+
+Serve para responder por fora "o deploy já subiu?". É a **única rota pública**: todas as outras exigem sessão, e mesmo uma rota inexistente sob um módulo devolve `401`, porque `autenticar` roda antes do roteamento. Sem o commit aqui, uma chamada que falha por rota ausente é indistinguível de uma que falha por serviço de terceiro fora do ar.
+
+```bash
+curl -s https://xepa.onrender.com/api/saude | jq .commit   # compare com `git log --oneline -1`
+```
 
 ---
 

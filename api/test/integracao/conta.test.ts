@@ -368,7 +368,21 @@ describe('infraestrutura da API', () => {
     const resposta = await api.cliente.get('/saude');
 
     assert.equal(resposta.status, 200);
-    assert.deepEqual(resposta.corpo, { status: 'ok', banco: 'ok' });
+    assert.equal(resposta.corpo.status, 'ok');
+    assert.equal(resposta.corpo.banco, 'ok');
+  });
+
+  it('o healthcheck diz qual commit está no ar', async () => {
+    // É a única rota pública: as demais exigem sessão, e até a rota
+    // inexistente devolve 401 sob `/despensa`, porque `autenticar` roda antes
+    // do roteamento. Sem o commit aqui, não há como saber de fora se um deploy
+    // subiu.
+    const resposta = await api.cliente.get('/saude');
+
+    assert.ok('commit' in resposta.corpo);
+    // Sem variável de ambiente de deploy, é `null` — "não sei", que é
+    // diferente de uma string vazia parecendo um commit.
+    assert.equal(resposta.corpo.commit, null);
   });
 
   it('rota inexistente devolve 404 no formato de erro da API', async () => {
