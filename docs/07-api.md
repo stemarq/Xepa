@@ -196,6 +196,18 @@ O que precisa de reposição agora. É também o que o alerta de lavanderia (RF0
 
 - `200` → `{ "produtos": [ … ] }`
 
+### `POST /api/despensa/produtos/:id/entrada` — RF010 (RN08)
+
+Repõe estoque **sem nota e sem preço**. Corpo: `{ "quantidade": 2 }`.
+
+- `200` → `{ "produto": { … }, "alertaResolvido": true }`
+- `400` quantidade ausente, zero ou negativa
+- `404` produto de outra pessoa (ou inexistente)
+
+Existe porque nem tudo que entra na despensa foi comprado: presente, sobra de casa, rateio com colega. Antes dela, a única forma de aumentar a quantidade de um item existente era lançar uma nota — que exige `valorUnitario` e vira transação (RN18). Quem ganhou um produto teria de inventar um preço, e esse preço entraria no gasto do mês como se tivesse sido pago.
+
+**Não gera `TRANSACAO`**, de propósito: estoque e dinheiro são coisas separadas, e o que não custou não é despesa. O valor pago continua sendo registrado só quando há nota (RF013). Há teste garantindo que a tabela `transacao` segue vazia depois de uma entrada.
+
 ### `POST /api/despensa/notas/consultar` — SD06 (RF008, RN22)
 
 Busca os itens da nota na consulta pública da SEFAZ, para adiantar o preenchimento. Não grava nada.
