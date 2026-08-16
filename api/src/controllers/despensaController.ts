@@ -41,6 +41,10 @@ const edicaoProdutoSchema = z
 
 const consumoSchema = z.object({ quantidade });
 
+// Sem preço, de propósito: a entrada manual existe justamente para o que não
+// foi comprado (RF010).
+const entradaSchema = z.object({ quantidade });
+
 const monitoramentoSchema = z.object({
   monitorado: z.boolean(),
   quantidadeMinima: quantidadeNaoNegativa.nullable().optional(),
@@ -104,6 +108,18 @@ export async function registrarConsumo(req: Request, res: Response) {
   const { quantidade: qtd } = consumoSchema.parse(req.body);
   const resultado = await despensaService.registrarConsumo(id, paramId(req), qtd);
   res.status(200).json(resultado);
+}
+
+/**
+ * RF010 — POST /api/despensa/produtos/:id/entrada
+ *
+ * Repõe estoque sem nota e sem preço: presente, sobra, rateio. Não gera
+ * transação — o que não custou não vira gasto.
+ */
+export async function registrarEntrada(req: Request, res: Response) {
+  const { id } = usuarioAutenticado(req);
+  const { quantidade: qtd } = entradaSchema.parse(req.body);
+  res.status(200).json(await despensaService.registrarEntrada(id, paramId(req), qtd));
 }
 
 /** SD10 — PUT /api/despensa/produtos/:id/monitoramento */

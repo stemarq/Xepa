@@ -127,6 +127,81 @@ describe('SD07 — cadastro e edição manual (RF009)', () => {
   });
 });
 
+describe('RF010 — entrada sem nota e sem preço', () => {
+  it('repõe o estoque de um item que já existe', async () => {
+    // O caso que motivou a rota: ganhar um produto. Sem ela, a única forma de
+    // aumentar a quantidade era lançar uma nota, que exige valor unitário.
+    const produto = await criarProduto({ nome: 'Arroz', quantidadeInicial: 1 });
+
+    const resposta = await conta.cliente.post(`/despensa/produtos/${produto.id}/entrada`, {
+      quantidade: 2,
+    });
+
+    assert.equal(resposta.status, 200);
+    assert.equal(resposta.corpo.produto.quantidadeAtual, 3);
+
+    const { rows } = await banco.query<{ tipo: string }>(
+      'SELECT tipo FROM movimentacao_estoque WHERE produto_id = $1 ORDER BY id',
+      [produto.id],
+    );
+    assert.deepEqual(rows.map((linha) => linha.tipo), ['entrada', 'entrada']);
+  });
+
+  it('o que foi ganho não vira gasto do mês', async () => {
+    // A regra que justifica a rota existir no módulo Despensa e não na Grana:
+    // estoque e dinheiro são coisas separadas, e o que não custou não é
+    // despesa. Se isto quebrar, o gasto do mês (RN11) passa a mentir.
+    const produto = await criarProduto({ nome: 'Café', quantidadeInicial: 0 });
+
+    await conta.cliente.post(`/despensa/produtos/${produto.id}/entrada`, { quantidade: 1 });
+
+    const { rows } = await banco.query('SELECT id FROM transacao');
+    assert.deepEqual(rows, []);
+  });
+
+  it('RN08 — repor tira o item do alerta de reposição', async () => {
+    const produto = await criarProduto({
+      nome: 'Feijão',
+      quantidadeInicial: 1,
+      monitorado: true,
+      quantidadeMinima: 2,
+    });
+
+    const resposta = await conta.cliente.post(`/despensa/produtos/${produto.id}/entrada`, {
+      quantidade: 3,
+    });
+
+    assert.equal(resposta.status, 200);
+    assert.equal(resposta.corpo.alertaResolvido, true);
+    assert.equal(resposta.corpo.produto.emAlerta, false);
+  });
+
+  it('recusa quantidade zero ou negativa', async () => {
+    const produto = await criarProduto({ nome: 'Arroz', quantidadeInicial: 1 });
+
+    const zero = await conta.cliente.post(`/despensa/produtos/${produto.id}/entrada`, {
+      quantidade: 0,
+    });
+    const negativa = await conta.cliente.post(`/despensa/produtos/${produto.id}/entrada`, {
+      quantidade: -1,
+    });
+
+    assert.equal(zero.status, 400);
+    assert.equal(negativa.status, 400);
+  });
+
+  it('não repõe item de outra pessoa', async () => {
+    const produto = await criarProduto({ nome: 'Arroz', quantidadeInicial: 1 });
+    const outra = await criarConta(api.cliente);
+
+    const resposta = await outra.cliente.post(`/despensa/produtos/${produto.id}/entrada`, {
+      quantidade: 1,
+    });
+
+    assert.equal(resposta.status, 404);
+  });
+});
+
 describe('SD08 — consumo e baixa (RF010, RN07, RN08)', () => {
   it('dá baixa e registra a movimentação', async () => {
     const produto = await criarProduto({ nome: 'Arroz', quantidadeInicial: 5 });

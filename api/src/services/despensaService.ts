@@ -213,6 +213,49 @@ export async function registrarConsumo(
   };
 }
 
+export interface ResultadoEntrada {
+  produto: ProdutoView;
+  /** O item saiu do alerta de reposição por causa desta entrada (RN08). */
+  alertaResolvido: boolean;
+}
+
+/**
+ * Entrada de estoque sem preço nem nota (RF010, RN08).
+ *
+ * Nem tudo que entra na despensa foi comprado: presente, sobra de casa,
+ * rateio com colega, o que veio da viagem. Antes disto, a única forma de
+ * aumentar a quantidade de um item existente era lançar uma nota — que exige
+ * valor unitário e vira gasto (RN18). Quem ganhou um produto teria de inventar
+ * um preço, e esse preço entraria no gasto do mês como se tivesse sido pago.
+ *
+ * Por isso a entrada é do módulo Despensa e não toca em `TRANSACAO`: estoque e
+ * dinheiro são coisas separadas, e o que não custou não pode virar despesa.
+ * O valor pago continua sendo registrado só quando existe nota (RF013).
+ */
+export async function registrarEntrada(
+  usuarioId: number,
+  produtoId: number,
+  quantidade: number,
+): Promise<ResultadoEntrada> {
+  const produto = await exigirProduto(usuarioId, produtoId);
+  const estavaEmAlerta = estaEmAlerta(produto);
+
+  const atualizado = await withTransaction((client) =>
+    produtoRepository.movimentar(produtoId, 'entrada', quantidade, client),
+  );
+
+  // Entrada não tem a trava condicional da baixa (RN07 só limita para baixo),
+  // então só falha se o produto sumiu entre a leitura e a escrita.
+  if (!atualizado) {
+    throw unprocessable('O item não está mais na despensa.');
+  }
+
+  return {
+    produto: toProdutoView(atualizado),
+    alertaResolvido: estavaEmAlerta && !estaEmAlerta(atualizado),
+  };
+}
+
 // ---------------------------------------------------------------------
 // SD06 — Leitura de nota fiscal via QR Code (RF008, RF016, RN06, RN18)
 // ---------------------------------------------------------------------

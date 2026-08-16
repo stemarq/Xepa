@@ -14,6 +14,8 @@ despensaRoutes.get('/alertas', asyncHandler(despensaController.listarAlertas));
 despensaRoutes.get('/produtos/:id', asyncHandler(despensaController.detalharProduto));
 despensaRoutes.put('/produtos/:id', asyncHandler(despensaController.editarProduto));
 despensaRoutes.post('/produtos/:id/consumo', asyncHandler(despensaController.registrarConsumo));
+// Reposição sem nota: o que entrou sem ter sido comprado (RF010).
+despensaRoutes.post('/produtos/:id/entrada', asyncHandler(despensaController.registrarEntrada));
 despensaRoutes.put(
   '/produtos/:id/monitoramento',
   asyncHandler(despensaController.configurarAlerta),
