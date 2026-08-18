@@ -143,6 +143,14 @@ Para desenvolver contra a API local, troque `EXPO_PUBLIC_API_URL` e **reinicie o
 - Cliente: notificações locais de lembrete (RF032), tela de detalhe por item da despensa. Testes do app: só `categoriaVisual` por enquanto.
 - Personas e user stories; wireframes/UX.
 
+## Foto de peça de roupa (RF038)
+
+Mora no próprio Postgres (`peca_roupa.foto`, `BYTEA`) porque é **miniatura**: o app reduz para 400px e manda JPEG a 70% (~40 KB). Trinta peças cabem em ~1 MB, e um bucket custaria política de acesso, chave de serviço e URL assinada para o mesmo dado.
+
+Duas coisas não podem ser esquecidas ao mexer em `roupaRepository`: as consultas de peça listam **coluna a coluna** (`COLUNAS_DA_PECA`), nunca `SELECT *` nem `RETURNING *` — um `*` faz dezenas de KB por peça viajarem em toda listagem. E o controller faz `Buffer.from` antes de `res.send`: o `pg` devolve BYTEA como Buffer, mas o PGlite devolve `Uint8Array`, que o Express serializa como JSON em vez de mandar binário.
+
+Diferente do avatar (lista fixa, RN04) e do produto da despensa (sem fonte de imagem): aqui a fonte é a câmera de quem cadastra.
+
 ## Fotos de produto: não existem, e não dá para buscar
 
 A nota fiscal identifica o produto pelo **código interno do mercado** (`Código: 39062`), não pelo GTIN — numa nota real de 50 itens, zero códigos de barras. Sem identificador global não há base para consultar foto, e metade de uma compra de verdade (fruta, verdura, carne a granel) não tem código de barras nem para escanear.

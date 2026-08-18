@@ -71,6 +71,7 @@ Aplicação voltada a estudantes universitários que estão lidando pela primeir
 | RF031 | O sistema deve notificar o usuário quando uma peça atingir o limite de usos. |
 | RF032 | O sistema deve permitir agendar lavagens e emitir lembretes. |
 | RF033 | O sistema deve consultar o estoque e alertar sobre a falta de sabão e amaciante. |
+| RF038 | O sistema deve permitir associar uma foto a cada peça de roupa, tirada na hora ou escolhida da galeria, e permitir trocá-la ou removê-la. A imagem é reduzida no aparelho antes de subir e guardada como miniatura; a peça continua válida sem foto. |
 
 ---
 

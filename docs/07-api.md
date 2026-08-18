@@ -488,6 +488,21 @@ Sem corpo. Registra o uso e incrementa o contador.
 
 `alertaLavagem` vem preenchido a partir do uso que atinge o limite, e continua vindo nos usos seguintes enquanto a peça não for lavada.
 
+### Foto da peça — RF038
+
+`PUT /api/roupa/pecas/:id/foto` — corpo `{ "base64": "...", "tipo": "image/jpeg" }` → `204`.
+`GET /api/roupa/pecas/:id/foto` → `200` com a **imagem crua** (`Content-Type` do upload), ou `404` se a peça não tem foto.
+`DELETE /api/roupa/pecas/:id/foto` → `204`.
+
+- `400` formato fora de JPEG/PNG/WebP, imagem vazia, ou acima de 600 KB
+- `404` peça inexistente ou de outro usuário
+
+A imagem fica no próprio Postgres (`peca_roupa.foto`, `BYTEA`), como **miniatura**: o app reduz para 400px e envia JPEG a 70%, algo em torno de 40 KB. Trinta peças cabem em pouco mais de 1 MB, e a alternativa custaria bucket, política de acesso, chave de serviço e URL assinada para carregar o mesmo dado.
+
+**A imagem nunca viaja nas listagens.** As consultas de peça selecionam coluna a coluna em vez de `SELECT *` justamente por isso; o que a lista traz é `temFoto` e `fotoEm`. O `fotoEm` existe para o cliente variar a URL quando a foto muda — sem ele, trocar a foto não mudaria o endereço e o app seguiria mostrando a antiga, do cache.
+
+Base64 em JSON, e não multipart: multipart exigiria um middleware de upload só para este endpoint, e um terço a mais de bytes sobre 40 KB é barato perto disso. O teto de 600 KB no Service é menor que o `CHECK` de 2 MB da coluna de propósito — `express.json` para em 1 MB, então um limite maior nunca seria alcançado e a pessoa veria "payload too large" no lugar de uma frase útil.
+
 ### `GET /api/roupa/lavar` — RN14
 
 Peças que atingiram o limite, das mais atrasadas para as menos.
