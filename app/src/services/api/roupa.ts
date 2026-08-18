@@ -1,7 +1,7 @@
 /** Módulo 5 — Roupa (SD21–SD24). */
 
 import type { AlertaLavanderia, Lavagem, Peca, ResultadoUso, StatusLavagem } from '@/types/api';
-import { comFiltros, requisitar } from './cliente';
+import { comFiltros, imagemDaApi, requisitar } from './cliente';
 
 export function listarPecas() {
   return requisitar<{ pecas: Peca[] }>('/roupa/pecas');
@@ -14,6 +14,27 @@ export function cadastrarPeca(dados: { nome: string; tipo?: string | null; limit
 
 export function removerPeca(pecaId: number) {
   return requisitar<void>(`/roupa/pecas/${pecaId}`, { metodo: 'DELETE' });
+}
+
+/** RF038 — grava a miniatura já reduzida pelo aparelho. */
+export function definirFotoDaPeca(pecaId: number, imagem: { base64: string; tipo: string }) {
+  return requisitar<void>(`/roupa/pecas/${pecaId}/foto`, { metodo: 'PUT', corpo: imagem });
+}
+
+export function removerFotoDaPeca(pecaId: number) {
+  return requisitar<void>(`/roupa/pecas/${pecaId}/foto`, { metodo: 'DELETE' });
+}
+
+/**
+ * RF038 — o que o `<Image>` precisa para carregar a foto.
+ *
+ * `fotoEm` entra na URL como parâmetro só para variar o endereço quando a foto
+ * muda: sem isso o cache do RN continuaria mostrando a imagem antiga depois de
+ * trocar a foto, porque o endereço seria o mesmo.
+ */
+export function fonteDaFoto(peca: { id: number; fotoEm: string | null }) {
+  const versao = peca.fotoEm ? `?v=${encodeURIComponent(peca.fotoEm)}` : '';
+  return imagemDaApi(`/roupa/pecas/${peca.id}/foto${versao}`);
 }
 
 /** SD22 — RF031: a resposta traz o aviso quando a peça atinge o limite. */

@@ -9,11 +9,12 @@
  */
 
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, View } from 'react-native';
 import * as roupaApi from '@/services/api/roupa';
 import type { Peca } from '@/types/api';
 import { useRequisicao } from '@/hooks/useRequisicao';
 import { useAcao } from '@/hooks/useAcao';
+import { useToast } from '@/components/ui/Toast';
 import { TelaModulo } from '@/components/common/TelaModulo';
 import { Secao } from '@/components/common/Secao';
 import { Aviso } from '@/components/ui/Aviso';
@@ -24,10 +25,99 @@ import { Cartao } from '@/components/ui/Cartao';
 import { EstadoVazio } from '@/components/ui/Estados';
 import { Selo } from '@/components/ui/Selo';
 import { Texto } from '@/components/ui/Texto';
-import { cores, espaco } from '@/theme';
+import { Feather } from '@expo/vector-icons';
+import { cores, espaco, raio, sombra } from '@/theme';
 import { dataCurta } from '@/utils/formato';
+import { escolherDaGaleria, tirarFoto } from '@/utils/fotoDaPeca';
 
 const ACENTO = cores.modulo.roupa;
+
+/** Lado do medalhão da foto no cartão. A miniatura enviada tem 400px. */
+const LADO_DA_FOTO = 56;
+
+/**
+ * A foto da peça, ou o convite para tirá-la (RF038).
+ *
+ * Sem foto, o quadrado é o próprio botão: um ícone de câmera pedindo para ser
+ * tocado ocupa o mesmo lugar que a imagem vai ocupar, então cadastrar a foto
+ * não muda o layout do cartão. Com foto, toca-se nela para trocar.
+ */
+function FotoDaPeca({
+  peca,
+  ocupada,
+  aoEscolher,
+  aoApagar,
+}: {
+  peca: Peca;
+  ocupada: boolean;
+  aoEscolher(origem: 'camera' | 'galeria'): void;
+  aoApagar(): void;
+}) {
+  const [menuAberto, setMenuAberto] = useState(false);
+
+  if (ocupada) {
+    return (
+      <View style={[estilos.foto, estilos.fotoVazia]}>
+        <ActivityIndicator color={ACENTO} />
+      </View>
+    );
+  }
+
+  return (
+    <View>
+      <Pressable
+        onPress={() => (peca.temFoto ? setMenuAberto((aberto) => !aberto) : aoEscolher('camera'))}
+        accessibilityRole="button"
+        accessibilityLabel={
+          peca.temFoto ? `Foto de ${peca.nome}. Tocar para trocar.` : `Fotografar ${peca.nome}`
+        }
+        style={({ pressed }) => [pressed && estilos.pressionado]}
+      >
+        {peca.temFoto ? (
+          <Image source={roupaApi.fonteDaFoto(peca)} style={estilos.foto} resizeMode="cover" />
+        ) : (
+          <View style={[estilos.foto, estilos.fotoVazia]}>
+            <Feather name="camera" size={22} color={ACENTO} />
+          </View>
+        )}
+      </Pressable>
+
+      {/* O menu só existe para quem já tem foto: quem não tem vai direto para
+          a câmera, que é o caso comum de estar com a peça na mão. */}
+      {menuAberto ? (
+        <View style={estilos.menuDaFoto}>
+          <Botao
+            titulo="Tirar outra"
+            aparencia="texto"
+            compacto
+            aoTocar={() => {
+              setMenuAberto(false);
+              aoEscolher('camera');
+            }}
+          />
+          <Botao
+            titulo="Escolher da galeria"
+            aparencia="texto"
+            compacto
+            aoTocar={() => {
+              setMenuAberto(false);
+              aoEscolher('galeria');
+            }}
+          />
+          <Botao
+            titulo="Remover foto"
+            aparencia="texto"
+            compacto
+            aoTocar={() => {
+              setMenuAberto(false);
+              aoApagar();
+            }}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+}
 
 export function RoupaScreen() {
   const painel = useRequisicao(async () => {
@@ -40,10 +130,36 @@ export function RoupaScreen() {
   }, []);
 
   const acao = useAcao();
+  const { mostrar } = useToast();
   const [novaAberta, setNovaAberta] = useState(false);
+  /** Qual peça está com foto em processamento — trava só o cartão dela. */
+  const [fotografando, setFotografando] = useState<number | null>(null);
 
   const pecas = painel.dados?.pecas.pecas ?? [];
   const paraLavar = pecas.filter((peca) => peca.precisaLavar);
+
+  /** RF038 — tirar ou escolher, reduzir no aparelho e gravar. */
+  async function trocarFoto(peca: Peca, origem: 'camera' | 'galeria') {
+    setFotografando(peca.id);
+    try {
+      const imagem = origem === 'camera' ? await tirarFoto() : await escolherDaGaleria();
+      // `null` é desistência ou permissão negada — nos dois casos não há o que
+      // dizer, e um erro aqui culparia a pessoa por ter mudado de ideia.
+      if (!imagem) return;
+
+      await roupaApi.definirFotoDaPeca(peca.id, imagem);
+      await painel.recarregar();
+    } catch (causa) {
+      mostrar(causa instanceof Error ? causa.message : 'Não deu para salvar a foto.', 'erro');
+    } finally {
+      setFotografando(null);
+    }
+  }
+
+  async function apagarFoto(peca: Peca) {
+    const feito = await acao.executar(() => roupaApi.removerFotoDaPeca(peca.id));
+    if (feito !== null) await painel.recarregar();
+  }
 
   async function registrarUso(peca: Peca) {
     const resultado = await acao.executar(
@@ -184,6 +300,14 @@ export function RoupaScreen() {
         {pecas.map((peca) => (
           <Cartao key={peca.id} acento={peca.precisaLavar ? cores.atencao : ACENTO}>
             <View style={estilos.linha}>
+              {/* RF038 — a foto vem antes do nome: quinze peças escritas viram
+                  uma lista que não se lê, e é a imagem que faz reconhecer. */}
+              <FotoDaPeca
+                peca={peca}
+                ocupada={fotografando === peca.id}
+                aoEscolher={(origem) => void trocarFoto(peca, origem)}
+                aoApagar={() => void apagarFoto(peca)}
+              />
               <View style={estilos.identificacao}>
                 <Texto variante="corpoForte">{peca.nome}</Texto>
                 <Texto variante="legenda" cor={cores.tintaFraca}>
@@ -271,6 +395,34 @@ function FormularioPeca({
 }
 
 const estilos = StyleSheet.create({
+  foto: {
+    width: LADO_DA_FOTO,
+    height: LADO_DA_FOTO,
+    borderRadius: raio.md,
+    backgroundColor: cores.fundoMudo,
+  },
+  fotoVazia: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: cores.linha,
+    borderStyle: 'dashed',
+  },
+  pressionado: {
+    opacity: 0.7,
+  },
+  menuDaFoto: {
+    position: 'absolute',
+    top: LADO_DA_FOTO + 4,
+    left: 0,
+    zIndex: 10,
+    minWidth: 180,
+    gap: 2,
+    padding: 4,
+    borderRadius: raio.md,
+    backgroundColor: cores.superficie,
+    ...sombra.alta,
+  },
   linha: {
     flexDirection: 'row',
     alignItems: 'flex-start',

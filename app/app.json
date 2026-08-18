@@ -30,9 +30,16 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "O Xepa usa a câmera para ler o QR Code da nota fiscal e lançar as compras na despensa.",
+          "cameraPermission": "O Xepa usa a câmera para ler o QR Code da nota fiscal e para fotografar suas peças de roupa.",
           "microphonePermission": false,
           "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Xepa acessa suas fotos para você escolher a imagem de uma peça de roupa já cadastrada.",
+          "cameraPermission": "O Xepa usa a câmera para fotografar suas peças de roupa."
         }
       ],
       [

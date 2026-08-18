@@ -25,6 +25,23 @@ export function definirTratamentoDeSessaoExpirada(callback: AoExpirarSessao | nu
 }
 
 /**
+ * Endereço e cabeçalho para uma imagem servida pela API (RF038).
+ *
+ * O `<Image>` do React Native busca a URL sozinho, fora deste módulo, e a rota
+ * da foto exige sessão — daí precisar expor a base e o token. É o único caso:
+ * qualquer outra requisição passa por `requisitar`.
+ */
+export function imagemDaApi(caminho: string): {
+  uri: string;
+  headers: Record<string, string>;
+} {
+  return {
+    uri: `${BASE}${caminho}`,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  };
+}
+
+/**
  * Erro vindo da API, já com o código de domínio que o `errorHandler` do
  * backend produz (`CONFLICT`, `UNPROCESSABLE_ENTITY`, …). As telas mostram
  * `mensagem` direto: o backend escreve as mensagens em português, para o

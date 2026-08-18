@@ -210,6 +210,10 @@ export interface Peca {
   /** RN14 — atingiu o limite de usos. */
   precisaLavar: boolean;
   usosRestantes: number;
+  /** RF038 — se há foto; a imagem vem por `/roupa/pecas/:id/foto`. */
+  temFoto: boolean;
+  /** Muda quando a foto é trocada — é o que invalida o cache da imagem. */
+  fotoEm: string | null;
 }
 
 export interface ResultadoUso {
