@@ -137,6 +137,96 @@ describe('SD22 — registrar uso (RF030, RF031, RN14)', () => {
   });
 });
 
+describe('RF038 — foto da peça', () => {
+  // PNG 1x1 de verdade: bytes que um decodificador aceita, não texto qualquer.
+  const PNG_1X1 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+  it('guarda a foto e devolve a imagem crua, não JSON', async () => {
+    const peca = await criarPeca('Camisa azul');
+
+    const envio = await conta.cliente.put(`/roupa/pecas/${peca.id}/foto`, {
+      base64: PNG_1X1,
+      tipo: 'image/png',
+    });
+    assert.equal(envio.status, 204);
+
+    const imagem = await conta.cliente.binario(`/roupa/pecas/${peca.id}/foto`);
+    assert.equal(imagem.status, 200);
+    assert.match(imagem.tipo ?? '', /image\/png/);
+    // Os mesmos bytes que subiram: nada de recodificar no caminho.
+    assert.deepEqual(imagem.bytes, Buffer.from(PNG_1X1, 'base64'));
+  });
+
+  it('a listagem diz que há foto sem carregar os bytes', async () => {
+    // O ponto da rota separada: a lista das peças não pode engordar de KB por
+    // causa de uma imagem que ela não desenha em miniatura própria.
+    const peca = await criarPeca('Camisa azul');
+    await conta.cliente.put(`/roupa/pecas/${peca.id}/foto`, {
+      base64: PNG_1X1,
+      tipo: 'image/png',
+    });
+
+    const lista = await conta.cliente.get('/roupa/pecas');
+    const daLista = lista.corpo.pecas.find((p: { id: number }) => p.id === peca.id);
+
+    assert.equal(daLista.temFoto, true);
+    assert.ok(daLista.fotoEm);
+    assert.equal('foto' in daLista, false);
+    assert.equal(JSON.stringify(lista.corpo).includes(PNG_1X1.slice(0, 40)), false);
+  });
+
+  it('peça sem foto responde 404, e não uma imagem vazia', async () => {
+    const peca = await criarPeca('Camisa azul');
+
+    const imagem = await conta.cliente.binario(`/roupa/pecas/${peca.id}/foto`);
+
+    assert.equal(imagem.status, 404);
+  });
+
+  it('recusa arquivo que não é imagem', async () => {
+    const peca = await criarPeca('Camisa azul');
+
+    const resposta = await conta.cliente.put(`/roupa/pecas/${peca.id}/foto`, {
+      base64: Buffer.from('%PDF-1.4').toString('base64'),
+      tipo: 'application/pdf',
+    });
+
+    assert.equal(resposta.status, 400);
+  });
+
+  it('apagar a foto limpa tipo e data junto', async () => {
+    // A constraint do banco exige os três campos coerentes: apagar só os bytes
+    // deixaria a peça com data de uma foto que não existe mais.
+    const peca = await criarPeca('Camisa azul');
+    await conta.cliente.put(`/roupa/pecas/${peca.id}/foto`, {
+      base64: PNG_1X1,
+      tipo: 'image/png',
+    });
+
+    const remocao = await conta.cliente.delete(`/roupa/pecas/${peca.id}/foto`);
+    assert.equal(remocao.status, 204);
+
+    const lista = await conta.cliente.get('/roupa/pecas');
+    const daLista = lista.corpo.pecas.find((p: { id: number }) => p.id === peca.id);
+    assert.equal(daLista.temFoto, false);
+    assert.equal(daLista.fotoEm, null);
+  });
+
+  it('não devolve a foto de outra pessoa', async () => {
+    const peca = await criarPeca('Camisa azul');
+    await conta.cliente.put(`/roupa/pecas/${peca.id}/foto`, {
+      base64: PNG_1X1,
+      tipo: 'image/png',
+    });
+    const outra = await criarConta(api.cliente);
+
+    const imagem = await outra.cliente.binario(`/roupa/pecas/${peca.id}/foto`);
+
+    assert.equal(imagem.status, 404);
+  });
+});
+
 describe('SD23 — agendar, concluir e cancelar lavagem (RF032)', () => {
   it('agenda a lavagem com as peças e o lembrete', async () => {
     const jeans = await criarPeca('Calça jeans');

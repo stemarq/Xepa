@@ -3,6 +3,19 @@ import type { Lavagem, PecaRoupa, StatusLavagem } from '../models/roupa.js';
 
 /** Acesso a dados do Módulo 5 (SD21–SD24). */
 
+/**
+ * As colunas de peça que trafegam nas consultas comuns.
+ *
+ * Escritas uma a uma, e não `SELECT *`, para deixar a foto de fora: são
+ * dezenas de KB por peça que nenhuma listagem usa e que passariam a viajar do
+ * banco para a API a cada abertura da tela. A foto tem rota própria, servida
+ * por `buscarFoto`; aqui vai só o fato de existir.
+ */
+const COLUNAS_DA_PECA = `
+  id, usuario_id, nome, tipo, limite_usos, usos_atuais, criado_em,
+  (foto IS NOT NULL) AS tem_foto, foto_em
+`;
+
 // ----- Peças -----
 
 export async function listarPecas(
@@ -10,7 +23,7 @@ export async function listarPecas(
   db: Executor = pool,
 ): Promise<PecaRoupa[]> {
   const { rows } = await db.query<PecaRoupa>(
-    `SELECT * FROM peca_roupa WHERE usuario_id = $1 ORDER BY nome`,
+    `SELECT ${COLUNAS_DA_PECA} FROM peca_roupa WHERE usuario_id = $1 ORDER BY nome`,
     [usuarioId],
   );
   return rows;
@@ -22,7 +35,7 @@ export async function listarPecasParaLavar(
   db: Executor = pool,
 ): Promise<PecaRoupa[]> {
   const { rows } = await db.query<PecaRoupa>(
-    `SELECT * FROM peca_roupa
+    `SELECT ${COLUNAS_DA_PECA} FROM peca_roupa
       WHERE usuario_id = $1 AND usos_atuais >= limite_usos
       ORDER BY (usos_atuais - limite_usos) DESC, nome`,
     [usuarioId],
@@ -36,7 +49,7 @@ export async function buscarPeca(
   db: Executor = pool,
 ): Promise<PecaRoupa | null> {
   const { rows } = await db.query<PecaRoupa>(
-    `SELECT * FROM peca_roupa WHERE id = $1 AND usuario_id = $2`,
+    `SELECT ${COLUNAS_DA_PECA} FROM peca_roupa WHERE id = $1 AND usuario_id = $2`,
     [pecaId, usuarioId],
   );
   return rows[0] ?? null;
@@ -48,11 +61,52 @@ export async function buscarPecaPorNome(
   db: Executor = pool,
 ): Promise<PecaRoupa | null> {
   const { rows } = await db.query<PecaRoupa>(
-    `SELECT * FROM peca_roupa
+    `SELECT ${COLUNAS_DA_PECA} FROM peca_roupa
       WHERE usuario_id = $1 AND lower(btrim(nome)) = lower(btrim($2)) LIMIT 1`,
     [usuarioId, nome],
   );
   return rows[0] ?? null;
+}
+
+export interface FotoDaPeca {
+  foto: Buffer;
+  foto_tipo: string;
+  foto_em: Date;
+}
+
+/**
+ * RF038 — os bytes da foto, só quando alguém realmente pede a imagem.
+ *
+ * Separada das demais leituras de propósito: é a única consulta que carrega a
+ * coluna pesada, e quem a chama é a rota que devolve a imagem.
+ */
+export async function buscarFoto(
+  usuarioId: number,
+  pecaId: number,
+  db: Executor = pool,
+): Promise<FotoDaPeca | null> {
+  const { rows } = await db.query<FotoDaPeca>(
+    `SELECT foto, foto_tipo, foto_em FROM peca_roupa
+      WHERE id = $1 AND usuario_id = $2 AND foto IS NOT NULL`,
+    [pecaId, usuarioId],
+  );
+  return rows[0] ?? null;
+}
+
+/** RF038 — grava ou troca a foto. `null` apaga, junto do tipo e da data. */
+export async function salvarFoto(
+  usuarioId: number,
+  pecaId: number,
+  imagem: { bytes: Buffer; tipo: string } | null,
+  db: Executor = pool,
+): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `UPDATE peca_roupa
+        SET foto = $3, foto_tipo = $4, foto_em = CASE WHEN $3::bytea IS NULL THEN NULL ELSE now() END
+      WHERE id = $1 AND usuario_id = $2`,
+    [pecaId, usuarioId, imagem?.bytes ?? null, imagem?.tipo ?? null],
+  );
+  return (rowCount ?? 0) > 0;
 }
 
 export async function inserirPeca(
@@ -62,7 +116,7 @@ export async function inserirPeca(
 ): Promise<PecaRoupa> {
   const { rows } = await db.query<PecaRoupa>(
     `INSERT INTO peca_roupa (usuario_id, nome, tipo, limite_usos, usos_atuais)
-     VALUES ($1, $2, $3, $4, 0) RETURNING *`,
+     VALUES ($1, $2, $3, $4, 0) RETURNING ${COLUNAS_DA_PECA}`,
     [usuarioId, dados.nome, dados.tipo, dados.limiteUsos],
   );
   return rows[0] as PecaRoupa;
@@ -94,7 +148,7 @@ export async function atualizarPeca(
   const { rows } = await db.query<PecaRoupa>(
     `UPDATE peca_roupa SET ${atribuicoes.join(', ')}
       WHERE id = $${valores.length - 1} AND usuario_id = $${valores.length}
-      RETURNING *`,
+      RETURNING ${COLUNAS_DA_PECA}`,
     valores,
   );
   return rows[0] ?? null;
@@ -110,7 +164,7 @@ export async function registrarUso(
   db: Executor = pool,
 ): Promise<PecaRoupa | null> {
   const { rows } = await db.query<PecaRoupa>(
-    `UPDATE peca_roupa SET usos_atuais = usos_atuais + 1 WHERE id = $1 RETURNING *`,
+    `UPDATE peca_roupa SET usos_atuais = usos_atuais + 1 WHERE id = $1 RETURNING ${COLUNAS_DA_PECA}`,
     [pecaId],
   );
   const peca = rows[0];

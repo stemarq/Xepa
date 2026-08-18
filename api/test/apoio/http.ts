@@ -19,11 +19,25 @@ export interface Resposta<T = any> {
   corpo: T;
 }
 
+export interface RespostaBinaria {
+  status: number;
+  tipo: string | null;
+  bytes: Buffer;
+}
+
 export interface Cliente {
   get<T = any>(caminho: string): Promise<Resposta<T>>;
   post<T = any>(caminho: string, corpo?: unknown): Promise<Resposta<T>>;
   put<T = any>(caminho: string, corpo?: unknown): Promise<Resposta<T>>;
   delete<T = any>(caminho: string): Promise<Resposta<T>>;
+  /**
+   * GET de resposta que não é JSON — a foto da peça (RF038).
+   *
+   * Existe porque `get` faz `JSON.parse` no corpo, e imagem não sobrevive a
+   * isso: sem um caminho próprio, o teste da rota de imagem falharia por causa
+   * do cliente de teste, não do que ele deveria estar checando.
+   */
+  binario(caminho: string): Promise<RespostaBinaria>;
   /** Deriva um cliente que manda `Authorization: Bearer <token>`. */
   comToken(token: string): Cliente;
 }
@@ -72,11 +86,23 @@ function criarCliente(base: string, token: string | null): Cliente {
     };
   }
 
+  async function binario(caminho: string): Promise<RespostaBinaria> {
+    const resposta = await fetch(`${base}${caminho}`, {
+      headers: token ? { authorization: `Bearer ${token}` } : {},
+    });
+    return {
+      status: resposta.status,
+      tipo: resposta.headers.get('content-type'),
+      bytes: Buffer.from(await resposta.arrayBuffer()),
+    };
+  }
+
   return {
     get: (caminho) => requisitar('GET', caminho),
     post: (caminho, corpo) => requisitar('POST', caminho, corpo),
     put: (caminho, corpo) => requisitar('PUT', caminho, corpo),
     delete: (caminho) => requisitar('DELETE', caminho),
+    binario,
     comToken: (novoToken) => criarCliente(base, novoToken),
   };
 }

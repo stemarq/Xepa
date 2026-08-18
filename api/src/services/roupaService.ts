@@ -9,7 +9,7 @@ import type {
 } from '../models/roupa.js';
 import { precisaLavar, toPecaView } from '../models/roupa.js';
 import * as roupaRepository from '../repositories/roupaRepository.js';
-import { conflict, notFound } from '../utils/errors.js';
+import { badRequest, conflict, notFound } from '../utils/errors.js';
 
 /**
  * Módulo 5 — Roupa (lavanderia).
@@ -91,6 +91,63 @@ export interface ResultadoUso {
   peca: PecaView;
   /** RF031 — avisa quando a peça atingiu o limite de usos (RN14). */
   alertaLavagem: { mensagem: string } | null;
+}
+
+/**
+ * RF038 — foto da peça.
+ *
+ * Quinze peças cadastradas por nome viram uma lista que não se lê; a foto é o
+ * que faz a tela parecer o armário. A imagem chega como miniatura já reduzida
+ * pelo app — o servidor confere formato e tamanho, mas não redimensiona:
+ * processar imagem exigiria dependência nativa, e o aparelho já tem a original
+ * em mãos para fazer isso melhor.
+ */
+const TIPOS_DE_IMAGEM = ['image/jpeg', 'image/png', 'image/webp'];
+
+/**
+ * Teto da imagem aceita: 600 KB.
+ *
+ * Menor que o CHECK de 2 MB da coluna de propósito. O corpo JSON da API para
+ * em 1 MB (`express.json`), e base64 engorda a imagem em um terço — um limite
+ * de 2 MB aqui nunca seria alcançado: o Express recusaria antes, com um erro
+ * genérico de "payload too large" no lugar de uma frase que explica o que
+ * fazer. A constraint continua sendo a garantia; isto é a mensagem.
+ *
+ * O app manda ~40 KB, então a folga é enorme para o uso normal.
+ */
+const TAMANHO_MAXIMO = 600 * 1024;
+
+export async function definirFoto(
+  usuarioId: number,
+  pecaId: number,
+  imagem: { base64: string; tipo: string },
+): Promise<void> {
+  await exigirPeca(usuarioId, pecaId);
+
+  if (!TIPOS_DE_IMAGEM.includes(imagem.tipo)) {
+    throw badRequest(`Formato de imagem não aceito. Use ${TIPOS_DE_IMAGEM.join(', ')}.`);
+  }
+
+  const bytes = Buffer.from(imagem.base64, 'base64');
+  if (bytes.length === 0) {
+    throw badRequest('A imagem chegou vazia.');
+  }
+  if (bytes.length > TAMANHO_MAXIMO) {
+    throw badRequest('A foto é grande demais. Envie uma imagem menor.');
+  }
+
+  await roupaRepository.salvarFoto(usuarioId, pecaId, { bytes, tipo: imagem.tipo });
+}
+
+export async function removerFoto(usuarioId: number, pecaId: number): Promise<void> {
+  await exigirPeca(usuarioId, pecaId);
+  await roupaRepository.salvarFoto(usuarioId, pecaId, null);
+}
+
+export async function obterFoto(usuarioId: number, pecaId: number) {
+  const foto = await roupaRepository.buscarFoto(usuarioId, pecaId);
+  if (!foto) throw notFound('Esta peça não tem foto.');
+  return foto;
 }
 
 export async function registrarUso(usuarioId: number, pecaId: number): Promise<ResultadoUso> {

@@ -10,6 +10,15 @@ export interface PecaRoupa {
   limite_usos: number;
   usos_atuais: number;
   criado_em: Date;
+  /**
+   * Se há foto (RF038) — não os bytes dela.
+   *
+   * As consultas de peça nunca trazem a imagem: ela tem rota própria, e
+   * carregá-la em toda listagem encheria a resposta de dezenas de KB que a
+   * lista não usa.
+   */
+  tem_foto?: boolean;
+  foto_em?: Date | null;
 }
 
 export interface Lavagem {
@@ -29,6 +38,16 @@ export interface PecaView {
   /** RN14 — a peça só entra na lista de "lavar" ao atingir o limite de usos. */
   precisaLavar: boolean;
   usosRestantes: number;
+  /** RF038 — se existe foto; a imagem em si vem por `/roupa/pecas/:id/foto`. */
+  temFoto: boolean;
+  /**
+   * Quando a foto foi trocada pela última vez.
+   *
+   * Vai para o cliente porque é o que muda a URL da imagem quando a foto
+   * muda: sem isso, trocar a foto não trocaria o endereço e o app seguiria
+   * mostrando a antiga, do cache.
+   */
+  fotoEm: Date | null;
 }
 
 export function toPecaView(peca: PecaRoupa): PecaView {
@@ -40,6 +59,8 @@ export function toPecaView(peca: PecaRoupa): PecaView {
     usosAtuais: peca.usos_atuais,
     precisaLavar: precisaLavar(peca),
     usosRestantes: Math.max(0, peca.limite_usos - peca.usos_atuais),
+    temFoto: peca.tem_foto ?? false,
+    fotoEm: peca.foto_em ?? null,
   };
 }
 
