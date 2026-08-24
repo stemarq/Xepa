@@ -13,6 +13,9 @@ export interface Usuario {
   token_sessao_expira_em: Date | null;
   token_recuperacao_hash: string | null;
   token_recuperacao_expira_em: Date | null;
+  /** RF039 — "continuar conectado"; independente do token de sessão. */
+  token_renovacao_hash: string | null;
+  token_renovacao_expira_em: Date | null;
 }
 
 export interface Avatar {

@@ -1,10 +1,15 @@
 import { env } from '../config/env.js';
-import type { Avatar, Instituicao, PerfilPublico } from '../models/usuario.js';
+import type {
+  Avatar,
+  Instituicao,
+  PerfilPublico,
+  UsuarioComRelacionamentos,
+} from '../models/usuario.js';
 import { toPerfilPublico } from '../models/usuario.js';
 import * as usuarioRepository from '../repositories/usuarioRepository.js';
 import { badRequest, conflict, unauthorized } from '../utils/errors.js';
 import { gerarHash, validarSenha, verificarSenha } from '../utils/senha.js';
-import { expiraEm, gerarToken, hashToken } from '../utils/token.js';
+import { expiraEm, expiraEmDias, gerarToken, hashToken } from '../utils/token.js';
 import * as emailService from './emailService.js';
 
 /**
@@ -80,7 +85,43 @@ function isViolacaoUnica(error: unknown, constraint: string): boolean {
 export interface SessaoAberta {
   token: string;
   expiraEm: Date;
+  /**
+   * RF039 — segredo de vida longa que abre uma sessão nova sem senha. Vai uma
+   * única vez para o cliente, que o guarda no Keychain atrás do desbloqueio
+   * biométrico (RNF19).
+   */
+  tokenRenovacao: string;
+  renovacaoExpiraEm: Date;
   perfil: PerfilPublico;
+}
+
+/**
+ * Emite o par sessão + renovação para um usuário já identificado.
+ *
+ * Usada pelo login e pela renovação. O token de renovação é **rotacionado**
+ * (RN23): cada troca queima o anterior, então um token copiado do aparelho só
+ * vale até o dono abrir o app.
+ */
+async function abrirSessao(usuario: UsuarioComRelacionamentos): Promise<SessaoAberta> {
+  const token = gerarToken();
+  const tokenRenovacao = gerarToken();
+  const expira = expiraEm(env.sessionTtlMinutes);
+  const renovacaoExpira = expiraEmDias(env.refreshTokenTtlDays);
+
+  await usuarioRepository.registrarTokenSessao(usuario.id, hashToken(token), expira);
+  await usuarioRepository.registrarTokenRenovacao(
+    usuario.id,
+    hashToken(tokenRenovacao),
+    renovacaoExpira,
+  );
+
+  return {
+    token,
+    expiraEm: expira,
+    tokenRenovacao,
+    renovacaoExpiraEm: renovacaoExpira,
+    perfil: toPerfilPublico(usuario),
+  };
 }
 
 export async function autenticar(emailInformado: string, senha: string): Promise<SessaoAberta> {
@@ -96,11 +137,40 @@ export async function autenticar(emailInformado: string, senha: string): Promise
     throw unauthorized('E-mail ou senha incorretos.');
   }
 
-  const token = gerarToken();
-  const expira = expiraEm(env.sessionTtlMinutes);
-  await usuarioRepository.registrarTokenSessao(usuario.id, hashToken(token), expira);
+  return abrirSessao(usuario);
+}
 
-  return { token, expiraEm: expira, perfil: toPerfilPublico(usuario) };
+// ---------------------------------------------------------------------
+// RF039 — continuar conectado
+// ---------------------------------------------------------------------
+
+/**
+ * Troca um token de renovação por uma sessão nova.
+ *
+ * É o que faz o app não pedir senha toda vez: a sessão morreu por inatividade
+ * (RNF09), mas o aparelho ainda guarda a prova de que aquele login aconteceu.
+ * Quem decide se essa prova pode ser usada é o cliente, que a mantém atrás do
+ * desbloqueio biométrico (RNF19) — o servidor só verifica o segredo.
+ *
+ * Não devolve a mesma resposta genérica do login: aqui não há e-mail para
+ * enumerar, o token ou é válido ou não é.
+ */
+export async function renovarPorToken(tokenRenovacao: string): Promise<SessaoAberta> {
+  const usuario = await usuarioRepository.buscarPorTokenRenovacao(hashToken(tokenRenovacao));
+  if (!usuario) {
+    throw unauthorized('Não foi possível continuar a sessão. Entre com sua senha.');
+  }
+
+  if (
+    !usuario.token_renovacao_expira_em ||
+    usuario.token_renovacao_expira_em.getTime() <= Date.now()
+  ) {
+    await usuarioRepository.invalidarTokenRenovacao(usuario.id);
+    throw unauthorized('Faz tempo desde o último acesso. Entre com sua senha.');
+  }
+
+  // RN23 — a rotação acontece dentro de `abrirSessao`.
+  return abrirSessao(usuario);
 }
 
 /**
@@ -118,8 +188,11 @@ export async function encerrarSessao(token: string): Promise<void> {
   if (!usuario) {
     throw unauthorized('Sessão inválida ou expirada.');
   }
-  // RN03 — o token é invalidado no logout
+  // RN03 — o token é invalidado no logout. O "continuar conectado" cai
+  // junto (RF039): sair é um pedido explícito de voltar a pedir senha, ao
+  // contrário da expiração por inatividade.
   await usuarioRepository.invalidarTokenSessao(usuario.id);
+  await usuarioRepository.invalidarTokenRenovacao(usuario.id);
 }
 
 /**

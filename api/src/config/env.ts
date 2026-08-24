@@ -46,6 +46,17 @@ export const env = {
   /** RNF09 — a sessão expira após 30 minutos de inatividade. */
   sessionTtlMinutes: num('SESSION_TTL_MINUTES', 30),
 
+  /**
+   * RF039 — validade do token de renovação ("continuar conectado").
+   *
+   * Não confundir com `sessionTtlMinutes`: a sessão continua morrendo em 30
+   * minutos de inatividade (RNF09). Este é o prazo do segredo de vida longa
+   * que o app guarda no Keychain e troca por uma sessão nova depois do
+   * desbloqueio biométrico. Trinta dias é o intervalo depois do qual voltar a
+   * digitar a senha deixa de ser incômodo e vira conferência.
+   */
+  refreshTokenTtlDays: num('REFRESH_TOKEN_TTL_DAYS', 30),
+
   /** RF005 — validade do token de redefinição de senha. */
   resetTokenTtlMinutes: num('RESET_TOKEN_TTL_MINUTES', 30),
 

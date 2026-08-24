@@ -55,6 +55,20 @@ export async function buscarPorTokenSessao(
   return rows[0] ?? null;
 }
 
+/**
+ * RF039 — busca pelo hash do token de renovação. Como no token de sessão, a
+ * expiração é decidida no Service.
+ */
+export async function buscarPorTokenRenovacao(
+  tokenHash: string,
+): Promise<UsuarioComRelacionamentos | null> {
+  const { rows } = await query<UsuarioComRelacionamentos>(
+    `SELECT ${COLUNAS_COM_RELACIONAMENTOS} ${JOINS} WHERE u.token_renovacao_hash = $1`,
+    [tokenHash],
+  );
+  return rows[0] ?? null;
+}
+
 export async function buscarPorTokenRecuperacao(
   tokenHash: string,
 ): Promise<UsuarioComRelacionamentos | null> {
@@ -162,6 +176,42 @@ export async function renovarSessao(usuarioId: number, expiraEm: Date): Promise<
   ]);
 }
 
+/**
+ * RF039 — grava o token de renovação recém-emitido.
+ *
+ * Chamada tanto no login quanto a cada renovação: o token é rotacionado a
+ * cada uso (RN23), então esta função sempre sobrescreve o anterior.
+ */
+export async function registrarTokenRenovacao(
+  usuarioId: number,
+  tokenHash: string,
+  expiraEm: Date,
+): Promise<void> {
+  await query(
+    `UPDATE usuario
+        SET token_renovacao_hash = $1, token_renovacao_expira_em = $2, atualizado_em = now()
+      WHERE id = $3`,
+    [tokenHash, expiraEm, usuarioId],
+  );
+}
+
+/**
+ * RF039 — descarta o "continuar conectado".
+ *
+ * Separada de `invalidarTokenSessao` de propósito: a sessão morre sozinha por
+ * inatividade (RNF09) e nesse caso o token de renovação **precisa** sobreviver
+ * — é ele que evita o login manual. Só o logout, a troca de senha e um token
+ * de renovação vencido derrubam os dois.
+ */
+export async function invalidarTokenRenovacao(usuarioId: number): Promise<void> {
+  await query(
+    `UPDATE usuario
+        SET token_renovacao_hash = NULL, token_renovacao_expira_em = NULL, atualizado_em = now()
+      WHERE id = $1`,
+    [usuarioId],
+  );
+}
+
 /** SD03/RN03 — no logout o token é invalidado. */
 export async function invalidarTokenSessao(usuarioId: number): Promise<void> {
   await query(
@@ -189,7 +239,9 @@ export async function salvarTokenRecuperacao(
 /**
  * Redefine a senha, consome o token de recuperação e derruba a sessão ativa:
  * quem trocou a senha por esquecimento não deve continuar logado em outro
- * aparelho.
+ * aparelho. O token de renovação cai junto (RF039) — deixá-lo de pé faria a
+ * troca de senha não expulsar ninguém, já que o aparelho antigo abriria uma
+ * sessão nova sem precisar da senha.
  */
 export async function redefinirSenha(
   usuarioId: number,
@@ -204,6 +256,8 @@ export async function redefinirSenha(
             token_recuperacao_expira_em = NULL,
             token_sessao_hash = NULL,
             token_sessao_expira_em = NULL,
+            token_renovacao_hash = NULL,
+            token_renovacao_expira_em = NULL,
             atualizado_em = now()
       WHERE id = $3`,
     [senhaHash, salt, usuarioId],

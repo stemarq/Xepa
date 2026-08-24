@@ -22,6 +22,10 @@ const cadastroSchema = z.object({
 
 const loginSchema = z.object({ email: emailSchema, senha: senhaSchema });
 
+const renovacaoSchema = z.object({
+  tokenRenovacao: z.string().min(1, 'Token de renovação ausente.'),
+});
+
 const recuperacaoSchema = z.object({ email: emailSchema });
 
 const redefinicaoSchema = z.object({
@@ -47,15 +51,33 @@ export async function cadastrar(req: Request, res: Response) {
   res.status(201).json({ usuario: perfil });
 }
 
+/** Formato da sessão na resposta — o mesmo no login e na renovação. */
+function corpoDaSessao(sessao: contaService.SessaoAberta) {
+  return {
+    token: sessao.token,
+    expiraEm: sessao.expiraEm.toISOString(),
+    tokenRenovacao: sessao.tokenRenovacao,
+    renovacaoExpiraEm: sessao.renovacaoExpiraEm.toISOString(),
+    usuario: sessao.perfil,
+  };
+}
+
 /** SD02 — POST /api/conta/login */
 export async function login(req: Request, res: Response) {
   const { email, senha } = loginSchema.parse(req.body);
-  const sessao = await contaService.autenticar(email, senha);
-  res.status(200).json({
-    token: sessao.token,
-    expiraEm: sessao.expiraEm.toISOString(),
-    usuario: sessao.perfil,
-  });
+  res.status(200).json(corpoDaSessao(await contaService.autenticar(email, senha)));
+}
+
+/**
+ * RF039 — POST /api/conta/renovar
+ *
+ * Pública por definição: quem chama aqui é justamente quem **não** tem sessão
+ * válida. O token de renovação vai no corpo, não no `Authorization`, para não
+ * ser confundido com um token de sessão pelo `autenticar`.
+ */
+export async function renovar(req: Request, res: Response) {
+  const { tokenRenovacao } = renovacaoSchema.parse(req.body);
+  res.status(200).json(corpoDaSessao(await contaService.renovarPorToken(tokenRenovacao)));
 }
 
 /** SD03 — POST /api/conta/logout */

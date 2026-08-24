@@ -9,6 +9,9 @@ export const contaRoutes = Router();
 // Públicas
 contaRoutes.post('/cadastro', asyncHandler(contaController.cadastrar));
 contaRoutes.post('/login', asyncHandler(contaController.login));
+// RF039 — troca o token de renovação por uma sessão nova; sem sessão válida
+// não haveria como autenticar esta chamada.
+contaRoutes.post('/renovar', asyncHandler(contaController.renovar));
 contaRoutes.post('/recuperar-senha', asyncHandler(contaController.recuperarSenha));
 contaRoutes.post('/redefinir-senha', asyncHandler(contaController.redefinirSenha));
 contaRoutes.get('/avatares', asyncHandler(contaController.listarAvatares));

@@ -4,7 +4,7 @@
  * Cobre RF001–RF007 e as regras RN01 (e-mail único), RN02 (força da senha),
  * RN03 (logout invalida o token), RN04 (avatar da lista), RN05 (instituição
  * existente) e RNF06/RNF07/RNF09 (hash da senha, hash do token, sessão de 30
- * minutos).
+ * minutos). Cobre também o "continuar conectado" (RF039, RN23).
  */
 
 import assert from 'node:assert/strict';
@@ -24,8 +24,15 @@ async function cadastrar(email: string, senha = SENHA, nome = 'Ana') {
   return api.cliente.post('/conta/cadastro', { nome, email, senha });
 }
 
+interface CorpoSessao {
+  token: string;
+  expiraEm: string;
+  tokenRenovacao: string;
+  renovacaoExpiraEm: string;
+}
+
 async function logar(email: string, senha = SENHA) {
-  return api.cliente.post<{ token: string; expiraEm: string }>('/conta/login', { email, senha });
+  return api.cliente.post<CorpoSessao>('/conta/login', { email, senha });
 }
 
 describe('SD01 — cadastro', () => {
@@ -199,6 +206,115 @@ describe('sessão (RNF09) e logout (SD03, RN03)', () => {
       rows[0]!.restante > (TTL_SESSAO_MINUTOS - 5) * 60,
       'a janela de inatividade deveria ter recomeçado',
     );
+  });
+});
+
+describe('RF039 — continuar conectado', () => {
+  async function conectada() {
+    await cadastrar('ana@xepa.app');
+    const { corpo } = await logar('ana@xepa.app');
+    return corpo;
+  }
+
+  async function renovar(tokenRenovacao: string) {
+    return api.cliente.post<CorpoSessao>('/conta/renovar', { tokenRenovacao });
+  }
+
+  it('o login entrega um token de renovação junto com a sessão', async () => {
+    const sessao = await conectada();
+
+    assert.ok(sessao.tokenRenovacao.length > 0);
+    assert.notEqual(sessao.tokenRenovacao, sessao.token);
+    // Prazos de ordens de grandeza diferentes: 30 min contra 30 dias.
+    assert.ok(
+      new Date(sessao.renovacaoExpiraEm).getTime() > new Date(sessao.expiraEm).getTime(),
+    );
+  });
+
+  it('RNF07 — o banco guarda só o hash do token de renovação', async () => {
+    const sessao = await conectada();
+
+    const { rows } = await banco.query<{ token_renovacao_hash: string }>(
+      'SELECT token_renovacao_hash FROM usuario',
+    );
+    assert.match(rows[0]!.token_renovacao_hash, /^[0-9a-f]{64}$/);
+    assert.notEqual(rows[0]!.token_renovacao_hash, sessao.tokenRenovacao);
+  });
+
+  it('abre uma sessão nova mesmo depois de a anterior morrer por inatividade', async () => {
+    const sessao = await conectada();
+    // Exatamente o cenário que motiva a RF039: o app ficou fechado por mais
+    // de 30 minutos e o token guardado no aparelho já não vale.
+    await banco.query("UPDATE usuario SET token_sessao_expira_em = now() - interval '1 minute'");
+    assert.equal((await api.cliente.comToken(sessao.token).get('/conta/perfil')).status, 401);
+
+    const renovada = await renovar(sessao.tokenRenovacao);
+
+    assert.equal(renovada.status, 200);
+    assert.notEqual(renovada.corpo.token, sessao.token);
+    assert.equal(renovada.corpo.usuario.email, 'ana@xepa.app');
+    assert.equal(
+      (await api.cliente.comToken(renovada.corpo.token).get('/conta/perfil')).status,
+      200,
+    );
+  });
+
+  it('RN23 — a renovação rotaciona o token: o anterior não vale duas vezes', async () => {
+    const sessao = await conectada();
+
+    const primeira = await renovar(sessao.tokenRenovacao);
+    const repetida = await renovar(sessao.tokenRenovacao);
+
+    assert.equal(primeira.status, 200);
+    assert.notEqual(primeira.corpo.tokenRenovacao, sessao.tokenRenovacao);
+    assert.equal(repetida.status, 401);
+    // O token novo, esse sim, continua servindo.
+    assert.equal((await renovar(primeira.corpo.tokenRenovacao)).status, 200);
+  });
+
+  it('recusa token de renovação inventado', async () => {
+    const resposta = await renovar('renovacao-que-nao-existe');
+
+    assert.equal(resposta.status, 401);
+    assert.equal(resposta.corpo.erro.codigo, 'UNAUTHORIZED');
+  });
+
+  it('RN23 — token de renovação vencido é recusado e apagado', async () => {
+    const sessao = await conectada();
+    await banco.query("UPDATE usuario SET token_renovacao_expira_em = now() - interval '1 day'");
+
+    const resposta = await renovar(sessao.tokenRenovacao);
+
+    assert.equal(resposta.status, 401);
+    const { rows } = await banco.query<{ token_renovacao_hash: string | null }>(
+      'SELECT token_renovacao_hash FROM usuario',
+    );
+    assert.equal(rows[0]!.token_renovacao_hash, null);
+  });
+
+  it('RNF09 — expirar por inatividade não derruba o token de renovação', async () => {
+    const sessao = await conectada();
+
+    // A rota protegida é quem apaga a sessão vencida; o "continuar conectado"
+    // precisa sobreviver a isso, senão a RF039 não teria efeito nenhum.
+    await banco.query("UPDATE usuario SET token_sessao_expira_em = now() - interval '1 minute'");
+    await api.cliente.comToken(sessao.token).get('/conta/perfil');
+
+    assert.equal((await renovar(sessao.tokenRenovacao)).status, 200);
+  });
+
+  it('RN03 — o logout derruba também o continuar conectado', async () => {
+    const sessao = await conectada();
+
+    await api.cliente.comToken(sessao.token).post('/conta/logout');
+
+    assert.equal((await renovar(sessao.tokenRenovacao)).status, 401);
+  });
+
+  it('exige o token de renovação no corpo', async () => {
+    const resposta = await api.cliente.post('/conta/renovar', {});
+
+    assert.equal(resposta.status, 400);
   });
 });
 

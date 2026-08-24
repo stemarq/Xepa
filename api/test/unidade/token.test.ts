@@ -4,7 +4,13 @@
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { expiraEm, gerarToken, hashToken, hashesIguais } from '../../src/utils/token.js';
+import {
+  expiraEm,
+  expiraEmDias,
+  gerarToken,
+  hashToken,
+  hashesIguais,
+} from '../../src/utils/token.js';
 
 describe('gerarToken', () => {
   it('gera 256 bits em base64url, seguro para URL', () => {
@@ -65,5 +71,17 @@ describe('RNF09 — expiraEm', () => {
     const decorrido = prazo.getTime() - antes;
     assert.ok(decorrido >= 30 * 60_000);
     assert.ok(decorrido < 30 * 60_000 + 5_000);
+  });
+});
+
+describe('RF039 — expiraEmDias', () => {
+  it('converte dias em minutos', () => {
+    const antes = Date.now();
+
+    const prazo = expiraEmDias(30);
+
+    const decorrido = prazo.getTime() - antes;
+    assert.ok(decorrido >= 30 * 24 * 60 * 60_000);
+    assert.ok(decorrido < 30 * 24 * 60 * 60_000 + 5_000);
   });
 });

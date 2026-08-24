@@ -28,3 +28,8 @@ export function hashesIguais(a: string, b: string): boolean {
 export function expiraEm(minutos: number): Date {
   return new Date(Date.now() + minutos * 60_000);
 }
+
+/** RF039 — o token de renovação vive em dias, não em minutos. */
+export function expiraEmDias(dias: number): Date {
+  return expiraEm(dias * 24 * 60);
+}
