@@ -151,6 +151,31 @@ export async function atualizar(
 }
 
 /**
+ * RF040 — apaga o produto da despensa.
+ *
+ * O escopo por `usuario_id` é o que faz o produto de outro usuário se
+ * comportar como inexistente, aqui como em todo o resto do módulo.
+ *
+ * O que acontece em volta já está decidido no DDL, e é o comportamento certo:
+ * `movimentacao_estoque` cai em cascata (histórico de entrada e baixa de um
+ * item que não existe mais não tem leitor), enquanto `item_nota.produto_id` é
+ * `ON DELETE SET NULL` — a linha da nota fica, com descrição, quantidade e
+ * valor pago. Apagar um item da despensa não pode reescrever o que foi gasto:
+ * o gasto do mês (RN11) sai de `TRANSACAO`, que não é tocada.
+ */
+export async function remover(
+  usuarioId: number,
+  produtoId: number,
+  db: Executor = pool,
+): Promise<boolean> {
+  const { rowCount } = await db.query(
+    `DELETE FROM produto WHERE id = $1 AND usuario_id = $2`,
+    [produtoId, usuarioId],
+  );
+  return rowCount === 1;
+}
+
+/**
  * Registra a movimentação e ajusta a coluna desnormalizada na mesma ida ao
  * banco. O `WHERE quantidade_atual >= $2` na baixa é a última linha de defesa
  * da RN07: mesmo com duas baixas simultâneas, o estoque não fica negativo —

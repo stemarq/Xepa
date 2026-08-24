@@ -137,6 +137,30 @@ export async function editarProduto(
 }
 
 // ---------------------------------------------------------------------
+// RF040 — Remover item da despensa
+// ---------------------------------------------------------------------
+
+/**
+ * Tira o item da despensa de vez.
+ *
+ * Existe porque nem tudo que sai do estoque foi consumido: o pote que caiu, o
+ * que estragou na geladeira, o item cadastrado errado. Dar baixa serviria para
+ * zerar a quantidade, mas não para tirar o cartão da lista — um item zerado
+ * que nunca mais vai voltar continuava ocupando a despensa para sempre, sem
+ * nenhuma ação disponível.
+ *
+ * Não é baixa nem perda registrada: é o produto deixando de fazer parte da
+ * despensa. Quem quiser manter o item e só descontar a quantidade continua
+ * usando `registrarConsumo`.
+ */
+export async function removerProduto(usuarioId: number, produtoId: number): Promise<void> {
+  // Passa pelo `exigirProduto` para o 404 sair com a mensagem do módulo, e
+  // não como um silêncio de "nada foi apagado".
+  await exigirProduto(usuarioId, produtoId);
+  await produtoRepository.remover(usuarioId, produtoId);
+}
+
+// ---------------------------------------------------------------------
 // SD10 — Configurar alerta de item (RF012, RN08)
 // ---------------------------------------------------------------------
 

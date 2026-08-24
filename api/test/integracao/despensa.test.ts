@@ -3,7 +3,8 @@
  *
  * Cobre RF008–RF013 e RF016 e as regras RN06 (nota lida uma vez só), RN07
  * (baixa não deixa o estoque negativo), RN08 (alerta configurável por item) e
- * RN18 (nota de mercado vira transação na categoria "Mercado").
+ * RN18 (nota de mercado vira transação na categoria "Mercado"). Cobre também a
+ * remoção de item (RF040).
  */
 
 import assert from 'node:assert/strict';
@@ -537,6 +538,85 @@ describe('SD09 — consulta de estoque e histórico (RF011, RF013)', () => {
     const resposta = await conta.cliente.get('/despensa/produtos/9999');
 
     assert.equal(resposta.status, 404);
+  });
+});
+
+describe('RF040 — remover item da despensa', () => {
+  it('tira o item da lista de vez', async () => {
+    const produto = await criarProduto({ nome: 'Azeite', unidade: 'ml', quantidadeInicial: 500 });
+
+    const resposta = await conta.cliente.delete(`/despensa/produtos/${produto.id}`);
+
+    assert.equal(resposta.status, 204);
+    const estoque = await conta.cliente.get('/despensa/produtos');
+    assert.deepEqual(estoque.corpo.produtos, []);
+    assert.equal((await conta.cliente.get(`/despensa/produtos/${produto.id}`)).status, 404);
+  });
+
+  it('remove item zerado, que é o que não tem mais como sair por baixa', async () => {
+    // O caso que motivou a rota: o pote quebrou, a baixa zerou o estoque e o
+    // cartão ficava na despensa para sempre, sem ação nenhuma disponível.
+    const produto = await criarProduto({ nome: 'Azeite', unidade: 'ml', quantidadeInicial: 500 });
+    await conta.cliente.post(`/despensa/produtos/${produto.id}/consumo`, { quantidade: 500 });
+
+    assert.equal((await conta.cliente.delete(`/despensa/produtos/${produto.id}`)).status, 204);
+  });
+
+  it('leva junto o histórico de movimentação do item', async () => {
+    const produto = await criarProduto({ nome: 'Azeite', quantidadeInicial: 3 });
+
+    await conta.cliente.delete(`/despensa/produtos/${produto.id}`);
+
+    const { rows } = await banco.query('SELECT 1 FROM movimentacao_estoque WHERE produto_id = $1', [
+      produto.id,
+    ]);
+    assert.equal(rows.length, 0, 'entrada e baixa de um item que não existe mais não têm leitor');
+  });
+
+  it('RF013 — o que foi pago pelo item continua na nota', async () => {
+    // Apagar da despensa não pode reescrever o histórico financeiro: a linha
+    // da nota fica, só perde o vínculo com o produto.
+    await conta.cliente.post('/despensa/notas', nota());
+    const estoque = await conta.cliente.get('/despensa/produtos');
+    const arroz = estoque.corpo.produtos.find((p: { nome: string }) => p.nome === 'Arroz');
+
+    await conta.cliente.delete(`/despensa/produtos/${arroz.id}`);
+
+    const { rows } = await banco.query<{ descricao: string; valor_unitario: string; produto_id: number | null }>(
+      'SELECT descricao, valor_unitario, produto_id FROM item_nota',
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]!.descricao, 'Arroz');
+    assert.equal(Number(rows[0]!.valor_unitario), 25.5);
+    assert.equal(rows[0]!.produto_id, null);
+  });
+
+  it('RN11 — remover da despensa não mexe no gasto do mês', async () => {
+    await conta.cliente.post('/despensa/notas', nota());
+    const estoque = await conta.cliente.get('/despensa/produtos');
+    const arroz = estoque.corpo.produtos.find((p: { nome: string }) => p.nome === 'Arroz');
+
+    await conta.cliente.delete(`/despensa/produtos/${arroz.id}`);
+
+    const { rows } = await banco.query('SELECT 1 FROM transacao');
+    assert.equal(rows.length, 1, 'o gasto sai de TRANSACAO, que a despensa não toca');
+  });
+
+  it('item inexistente devolve 404', async () => {
+    const resposta = await conta.cliente.delete('/despensa/produtos/9999');
+
+    assert.equal(resposta.status, 404);
+  });
+
+  it('não dá para remover item da despensa alheia', async () => {
+    const produto = await criarProduto({ nome: 'Arroz', quantidadeInicial: 5 });
+    const outra = await criarConta(api.cliente, 'Bruno');
+
+    const resposta = await outra.cliente.delete(`/despensa/produtos/${produto.id}`);
+
+    assert.equal(resposta.status, 404);
+    const estoque = await conta.cliente.get('/despensa/produtos');
+    assert.equal(estoque.corpo.produtos.length, 1, 'o item do dono continua lá');
   });
 });
 

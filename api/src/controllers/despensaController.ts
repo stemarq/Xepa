@@ -102,6 +102,17 @@ export async function editarProduto(req: Request, res: Response) {
   res.status(200).json({ produto: await despensaService.editarProduto(id, paramId(req), dados) });
 }
 
+/**
+ * RF040 — DELETE /api/despensa/produtos/:id
+ *
+ * 204: não há corpo a devolver, e o cliente já sabe qual item sumiu.
+ */
+export async function removerProduto(req: Request, res: Response) {
+  const { id } = usuarioAutenticado(req);
+  await despensaService.removerProduto(id, paramId(req));
+  res.status(204).send();
+}
+
 /** SD08 — POST /api/despensa/produtos/:id/consumo */
 export async function registrarConsumo(req: Request, res: Response) {
   const { id } = usuarioAutenticado(req);

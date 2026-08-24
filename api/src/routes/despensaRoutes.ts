@@ -13,6 +13,9 @@ despensaRoutes.post('/produtos', asyncHandler(despensaController.criarProduto));
 despensaRoutes.get('/alertas', asyncHandler(despensaController.listarAlertas));
 despensaRoutes.get('/produtos/:id', asyncHandler(despensaController.detalharProduto));
 despensaRoutes.put('/produtos/:id', asyncHandler(despensaController.editarProduto));
+// RF040 — tirar o item da despensa: o que quebrou, estragou ou entrou errado
+// não sai por baixa, sai daqui.
+despensaRoutes.delete('/produtos/:id', asyncHandler(despensaController.removerProduto));
 despensaRoutes.post('/produtos/:id/consumo', asyncHandler(despensaController.registrarConsumo));
 // Reposição sem nota: o que entrou sem ter sido comprado (RF010).
 despensaRoutes.post('/produtos/:id/entrada', asyncHandler(despensaController.registrarEntrada));
