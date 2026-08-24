@@ -32,6 +32,22 @@ process.env.SMTP_HOST ??= '';
 export const TTL_SESSAO_MINUTOS = 30;
 process.env.SESSION_TTL_MINUTES = String(TTL_SESSAO_MINUTOS);
 
+/**
+ * A integração roda contra o provedor **simulado**, sempre.
+ *
+ * `openFinanceService` escolhe o provedor pela presença das credenciais, e
+ * `env.ts` faz `import 'dotenv/config'` — então, numa máquina com `api/.env`
+ * preenchido, a suíte passaria a chamar a Pluggy de verdade: rede num teste
+ * que deveria ser hermético, e cenários falhando por instituição que só existe
+ * no simulador. Limpar aqui vale porque este módulo é importado antes de
+ * qualquer coisa de `src/`.
+ *
+ * Quem testa o adaptador da Pluggy é `unidade/provedor-pluggy.test.ts`, que
+ * define as credenciais por conta própria e dubla o `fetch`.
+ */
+process.env.PLUGGY_CLIENT_ID = '';
+process.env.PLUGGY_CLIENT_SECRET = '';
+
 import { readdir, readFile } from 'node:fs/promises';
 import { mock } from 'node:test';
 import { PGlite } from '@electric-sql/pglite';

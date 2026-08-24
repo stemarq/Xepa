@@ -98,6 +98,15 @@ export const env = {
   pluggy: {
     clientId: process.env.PLUGGY_CLIENT_ID ?? '',
     clientSecret: process.env.PLUGGY_CLIENT_SECRET ?? '',
+    /**
+     * Inclui os conectores de teste ("Pluggy Bank", "Sandbox Open Finance") na
+     * lista de instituições.
+     *
+     * A Pluggy os esconde por padrão, e com razão: são bancos que não existem,
+     * e oferecê-los a um usuário de verdade seria oferecer uma conexão que não
+     * leva a lugar nenhum. Ligado só em desenvolvimento e demonstração.
+     */
+    sandbox: bool('PLUGGY_SANDBOX', false),
   },
 
   mail: {

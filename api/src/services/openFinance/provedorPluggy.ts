@@ -147,7 +147,13 @@ export class ProvedorPluggy implements ProvedorOpenFinance {
    * aqui — a interface não precisa saber de que tipo é o id do provedor.
    */
   async listarInstituicoes(): Promise<InstituicaoFinanceira[]> {
-    const { results } = await this.chamar<{ results: RespostaConnector[] }>('/connectors');
+    // Os conectores de teste ficam fora da listagem por padrão, do lado da
+    // Pluggy: são bancos que não existem, e mostrá-los a um usuário real seria
+    // oferecer uma conexão que não leva a lugar nenhum.
+    const filtro = env.pluggy.sandbox ? '?sandbox=true' : '';
+    const { results } = await this.chamar<{ results: RespostaConnector[] }>(
+      `/connectors${filtro}`,
+    );
     return results.map((conector) => ({ id: String(conector.id), nome: conector.name }));
   }
 
@@ -162,9 +168,13 @@ export class ProvedorPluggy implements ProvedorOpenFinance {
     instituicaoId: string,
     escopo: string,
   ): Promise<ConsentimentoExterno> {
+    // `escopo` não vai no corpo: a Pluggy não tem esse campo e ignora o que não
+    // conhece. Quem registra o escopo consentido é o nosso `consentimento`
+    // (RF037) — mandar para cá dava a falsa impressão de que a Pluggy o aplica.
+    void escopo;
     const { accessToken } = await this.chamar<{ accessToken: string }>('/connect_token', {
       metodo: 'POST',
-      corpo: { options: { connectorIds: [Number(instituicaoId)], escopo } },
+      corpo: { options: { connectorIds: [Number(instituicaoId)] } },
     });
 
     const expiraEm = new Date();
