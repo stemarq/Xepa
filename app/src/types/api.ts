@@ -31,6 +31,9 @@ export interface Perfil {
 export interface Sessao {
   token: string;
   expiraEm: string;
+  /** RF039 — abre uma sessão nova sem senha; vive dias, não minutos. */
+  tokenRenovacao: string;
+  renovacaoExpiraEm: string;
   usuario: Perfil;
 }
 

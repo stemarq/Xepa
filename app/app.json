@@ -28,6 +28,12 @@
       "expo-font",
       "expo-secure-store",
       [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "O Xepa usa o Face ID para você voltar à sua banca sem digitar a senha toda vez."
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "O Xepa usa a câmera para ler o QR Code da nota fiscal e para fotografar suas peças de roupa.",

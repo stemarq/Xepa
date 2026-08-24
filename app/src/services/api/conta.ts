@@ -19,6 +19,20 @@ export function entrar(email: string, senha: string) {
   });
 }
 
+/**
+ * RF039 — troca o token de renovação por uma sessão nova.
+ *
+ * `semSessao` porque é justamente a chamada de quem não tem sessão válida: o
+ * segredo vai no corpo, nunca no cabeçalho de autorização.
+ */
+export function renovar(tokenRenovacao: string) {
+  return requisitar<Sessao>('/conta/renovar', {
+    metodo: 'POST',
+    corpo: { tokenRenovacao },
+    semSessao: true,
+  });
+}
+
 export function sair() {
   return requisitar<{ mensagem: string }>('/conta/logout', { metodo: 'POST' });
 }

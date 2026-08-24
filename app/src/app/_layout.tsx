@@ -4,6 +4,11 @@
  *
  * A decisão de para onde ir (login ou banca) é dos layouts de grupo — aqui
  * ainda não se sabe se existe sessão guardada no aparelho.
+ *
+ * A exceção é o desbloqueio (RF039): ele substitui o app inteiro, não uma
+ * rota. Quem está bloqueado não deve chegar a nenhuma tela, nem à de login —
+ * a conta já é conhecida, e mandar para o login seria justamente jogar fora o
+ * "continuar conectado" que acabou de ser encontrado.
  */
 
 import { useEffect } from 'react';
@@ -17,7 +22,8 @@ import {
   Poppins_500Medium,
   Poppins_600SemiBold,
 } from '@expo-google-fonts/poppins';
-import { SessaoProvider } from '@/contexts/SessaoContext';
+import { SessaoProvider, useSessao } from '@/contexts/SessaoContext';
+import { BloqueioScreen } from '@/screens/auth/BloqueioScreen';
 import { ToastProvider } from '@/components/ui/Toast';
 import { cores } from '@/theme';
 
@@ -46,24 +52,39 @@ export default function LayoutRaiz() {
       <ToastProvider>
         <SessaoProvider>
           <StatusBar style="dark" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: cores.fundo },
-            }}
-          >
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(banca)" />
-            <Stack.Screen name="perfil" options={{ presentation: 'modal' }} />
-            {/* Detalhe da matéria (SD20): empilha sobre as abas, não é uma delas. */}
-            <Stack.Screen name="materia/[id]" />
-            {/* Open Finance (SD25–SD27): entra pela Grana, fora das abas. */}
-            <Stack.Screen name="bancos" />
-            {/* Leitura de nota (SD06): entra pela Despensa, fora das abas. */}
-            <Stack.Screen name="nota" />
-          </Stack>
+          <Rotas />
         </SessaoProvider>
       </ToastProvider>
     </SafeAreaProvider>
+  );
+}
+
+/**
+ * Precisa ser um componente à parte: `useSessao` só existe dentro do
+ * `SessaoProvider`, e é o provedor que decide se hoje o app é o app ou a tela
+ * de desbloqueio.
+ */
+function Rotas() {
+  const { bloqueado } = useSessao();
+
+  if (bloqueado) return <BloqueioScreen />;
+
+  return (
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: cores.fundo },
+      }}
+    >
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(banca)" />
+      <Stack.Screen name="perfil" options={{ presentation: 'modal' }} />
+      {/* Detalhe da matéria (SD20): empilha sobre as abas, não é uma delas. */}
+      <Stack.Screen name="materia/[id]" />
+      {/* Open Finance (SD25–SD27): entra pela Grana, fora das abas. */}
+      <Stack.Screen name="bancos" />
+      {/* Leitura de nota (SD06): entra pela Despensa, fora das abas. */}
+      <Stack.Screen name="nota" />
+    </Stack>
   );
 }
