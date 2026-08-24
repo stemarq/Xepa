@@ -28,7 +28,12 @@ const autorizacaoSchema = z.object({
 });
 
 export async function listarInstituicoes(_req: Request, res: Response) {
-  res.json({ instituicoes: await openFinanceService.listarInstituicoes() });
+  res.json({
+    instituicoes: await openFinanceService.listarInstituicoes(),
+    // A tela precisa disso para não anunciar o que não é: quem decide o
+    // provedor é o ambiente do servidor, e o app não tem como descobrir.
+    simulado: openFinanceService.provedor.simulado,
+  });
 }
 
 export async function listarConexoes(req: Request, res: Response) {

@@ -58,6 +58,7 @@ export class ProvedorSimulado implements ProvedorOpenFinance {
    * existe antes da autorização — ao contrário de um widget de agregador.
    */
   readonly idNasceNoCliente = false;
+  readonly simulado = true;
 
   private readonly sessoes = new Map<string, Sessao>();
 

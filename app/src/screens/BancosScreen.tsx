@@ -3,9 +3,16 @@
  *
  * O fluxo tem três passos porque o consentimento tem três passos de verdade:
  * abrir, o usuário autorizar no ambiente da instituição, e confirmar. O passo
- * do meio não acontece aqui — no mundo real é o app do banco (RNF18). Com o
- * provedor simulado ele vira um botão, e a tela diz isso em voz alta em vez de
- * fingir que o Xepa autenticou alguém.
+ * do meio não acontece aqui (RNF18), e a tela suporta as duas formas dele sem
+ * saber qual provedor o backend escolheu:
+ *
+ *   * veio `tokenDoCliente` → abre o widget do agregador, onde a senha é
+ *     digitada no domínio dele;
+ *   * não veio → provedor simulado, e o passo vira uma chamada de simulação.
+ *
+ * Quem decide é a resposta da abertura, não uma configuração do app. Assim
+ * ligar a integração real é preencher variáveis no servidor, sem build novo do
+ * cliente.
  *
  * RF037 — escopo e validade ficam à vista antes e depois do aceite; é o que
  * sustenta o consentimento informado (RNF17).
@@ -18,6 +25,7 @@ import type { ConexaoOpenFinance, StatusConsentimento } from '@/types/api';
 import { useRequisicao } from '@/hooks/useRequisicao';
 import { useAcao } from '@/hooks/useAcao';
 import { TelaModulo } from '@/components/common/TelaModulo';
+import { WidgetDoBanco } from '@/components/common/WidgetDoBanco';
 import { Secao } from '@/components/common/Secao';
 import { Aviso } from '@/components/ui/Aviso';
 import { Botao } from '@/components/ui/Botao';
@@ -41,27 +49,72 @@ export function BancosScreen() {
 
   const acao = useAcao();
   const [conectando, setConectando] = useState<string | null>(null);
+  /**
+   * Consentimento aberto, à espera de o usuário terminar no widget. Guarda o
+   * id do nosso consentimento junto do token porque a confirmação precisa dos
+   * dois: o nosso, para saber qual linha atualizar, e o do vínculo, que só
+   * existe quando o widget termina.
+   */
+  const [emAutorizacao, setEmAutorizacao] = useState<
+    { consentimentoId: number; token: string } | null
+  >(null);
 
   const conexoes = painel.dados?.conexoes.conexoes ?? [];
   const instituicoes = painel.dados?.instituicoes.instituicoes ?? [];
+  // Enquanto não se sabe, assume simulado: prometer conexão real e entregar
+  // dados fictícios é o erro pior dos dois.
+  const simulado = painel.dados?.instituicoes.simulado ?? true;
   const jaConectadas = new Set(
     conexoes.filter((c) => c.status === 'ativo').map((c) => c.instituicao),
   );
 
   /**
-   * Os três passos, um atrás do outro. O do meio só existe porque o provedor é
-   * o simulado — com um agregador real, aqui abriria a `urlDeAutorizacao`.
+   * Abre o consentimento e escolhe o caminho do passo do meio pela resposta:
+   * com `tokenDoCliente`, o widget do agregador; sem ele, o simulador.
    */
   async function conectar(instituicaoId: string) {
     setConectando(instituicaoId);
+    const aberto = await acao.executar(() =>
+      openFinanceApi.criarConsentimento(instituicaoId),
+    );
+
+    if (!aberto) {
+      setConectando(null);
+      return;
+    }
+
+    // Provedor real: o resto do fluxo depende de o usuário concluir no widget,
+    // então a tela para aqui e volta em `concluirAutorizacao`.
+    if (aberto.tokenDoCliente) {
+      setEmAutorizacao({
+        consentimentoId: aberto.consentimento.id,
+        token: aberto.tokenDoCliente,
+      });
+      return;
+    }
+
+    // Provedor simulado: o passo do meio é uma chamada, não uma tela.
+    await openFinanceApi.simularAutorizacao(aberto.consentimento.id).catch(() => undefined);
+    await concluirAutorizacao(aberto.consentimento.id);
+  }
+
+  /**
+   * Confirma o consentimento e já sincroniza.
+   *
+   * `idExterno` só existe no caminho do widget — é o vínculo que o agregador
+   * acabou de criar, e é ele que substitui o id provisório no backend.
+   */
+  async function concluirAutorizacao(consentimentoId: number, idExterno?: string) {
+    setEmAutorizacao(null);
     const resultado = await acao.executar(async () => {
-      const { consentimento } = await openFinanceApi.criarConsentimento(instituicaoId);
-      await openFinanceApi.simularAutorizacao(consentimento.id);
-      await openFinanceApi.autorizarConsentimento(consentimento.id);
-      return openFinanceApi.sincronizar(consentimento.id);
+      await openFinanceApi.autorizarConsentimento(consentimentoId, idExterno);
+      return openFinanceApi.sincronizar(consentimentoId);
     }, (r) => mensagemDaSincronizacao(r.resumo));
     setConectando(null);
-    if (resultado) await painel.recarregar();
+    // Recarrega mesmo em falha: a autorização pode ter passado e a
+    // sincronização não, e nesse caso a conexão já existe e precisa aparecer.
+    await painel.recarregar();
+    return resultado;
   }
 
   async function sincronizar(conexao: ConexaoOpenFinance) {
@@ -89,6 +142,26 @@ export function BancosScreen() {
       aoRecarregar={painel.recarregar}
       dentroDasAbas={false}
     >
+      {/*
+        Fora do fluxo da tela, por cima de tudo: enquanto o widget está aberto
+        quem conduz é o agregador. Desmontar ao terminar é o que garante que o
+        token de 30 min não fica vivo numa tela que ninguém está olhando.
+      */}
+      {emAutorizacao ? (
+        <WidgetDoBanco
+          connectToken={emAutorizacao.token}
+          aoConcluir={(idExterno) => {
+            void concluirAutorizacao(emAutorizacao.consentimentoId, idExterno);
+          }}
+          aoCancelar={() => {
+            // Desistir não deixa lixo: o consentimento fica pendente e a tela
+            // volta ao estado de antes, sem conexão meio-feita na lista.
+            setEmAutorizacao(null);
+            setConectando(null);
+            void painel.recarregar();
+          }}
+        />
+      ) : null}
 
       <Aviso
         tom="neutro"
@@ -185,9 +258,18 @@ export function BancosScreen() {
           })}
         </View>
 
+        {/*
+          A legenda muda com o provedor porque a afirmação muda. Dizer
+          "simulado" com a integração ligada seria tão errado quanto o
+          contrário — e é o tipo de texto que envelhece calado.
+        */}
         <Texto variante="legenda" cor={cores.tintaFraca}>
-          Provedor simulado: a autorização que normalmente acontece no app do banco está embutida
-          no toque. Com um agregador autorizado, este passo abre o ambiente da instituição.
+          {simulado
+            ? 'Provedor simulado: a autorização que normalmente acontece no app do banco está ' +
+              'embutida no toque, e os dados são fictícios. Com um agregador autorizado, este ' +
+              'passo abre o ambiente da instituição.'
+            : 'A autorização abre o ambiente da instituição, fora do Xepa. Sua senha é digitada ' +
+              'lá e não passa por nós.'}
         </Texto>
       </Secao>
     </TelaModulo>

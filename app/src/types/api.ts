@@ -336,3 +336,17 @@ export interface ResultadoDaNota {
   /** Itens que saíram do alerta de reposição por causa desta nota (RN08). */
   alertasResolvidos: string[];
 }
+
+/**
+ * RF034 — abertura do consentimento.
+ *
+ * `tokenDoCliente` só vem com provedor de widget: é a credencial de curta
+ * duração que abre o widget do agregador, onde a senha do banco é digitada
+ * (RNF18). Com o provedor simulado ele não existe, e a tela cai no botão de
+ * autorização simulada.
+ */
+export interface RespostaNovoConsentimento {
+  consentimento: { id: number; status: string; expira_em: string };
+  urlDeAutorizacao: string;
+  tokenDoCliente?: string;
+}

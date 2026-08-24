@@ -62,6 +62,7 @@ interface RespostaTransacao {
 export class ProvedorPluggy implements ProvedorOpenFinance {
   /** O `item` da Pluggy nasce no widget, não aqui. */
   readonly idNasceNoCliente = true;
+  readonly simulado = false;
 
   private chave: { valor: string; expiraEm: number } | null = null;
 

@@ -203,6 +203,8 @@ O lilás e o azul do brand **não podem ser duas séries no mesmo gráfico**: fi
 
 **Qual provedor roda é decidido pelo ambiente**, não por um import trocado à mão: com `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` preenchidas, `openFinanceService` instancia `ProvedorPluggy`; sem elas, `ProvedorSimulado`. É o que mantém a suíte, o `dev:memoria` e um clone recém-baixado rodando sem cadastro em provedor nenhum.
 
+**A tela pergunta qual provedor está rodando.** `GET /grana/open-finance/instituicoes` devolve `simulado`, e a legenda da tela muda com ele. Anunciar "conexão com seu banco" sobre dados inventados engana o usuário; anunciar "provedor simulado" com a integração ligada também. Como a escolha é do ambiente do servidor, o app não tem como deduzir — e um texto fixo envelheceria calado. O app assume `simulado: true` enquanto não sabe: prometer real e entregar fictício é o erro pior.
+
 **A suíte precisa neutralizar as credenciais.** `env.ts` faz `import 'dotenv/config'`, então numa máquina com `api/.env` preenchido a integração passaria a chamar a Pluggy de verdade — rede num teste que deveria ser hermético, e cenários quebrando com "Instituição desconhecida: nubank", que só existe no simulador. `test/apoio/banco.ts` zera `PLUGGY_CLIENT_ID`/`PLUGGY_CLIENT_SECRET` antes de qualquer import de `src/`. Foi o preço de escolher o provedor por ambiente, e vale pagar: a alternativa era alguém esquecer de trocar um import antes do deploy.
 
 **Conector de teste é escondido pela Pluggy.** "Pluggy Bank" (id 2) e "Sandbox Open Finance" (600) só vêm com `?sandbox=true`, atrás de `PLUGGY_SANDBOX`. Padrão desligado: banco que não existe oferecido a usuário real é conexão que não leva a lugar nenhum.

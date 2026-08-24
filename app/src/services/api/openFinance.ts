@@ -3,12 +3,19 @@
 import type {
   ConexaoOpenFinance,
   InstituicaoOpenFinance,
+  RespostaNovoConsentimento,
   ResumoDaSincronizacao,
 } from '@/types/api';
 import { requisitar } from './cliente';
 
+/**
+ * `simulado` diz se o backend está falando com um agregador de verdade ou com
+ * o provedor de demonstração. Quem decide é variável de ambiente no servidor,
+ * então o app precisa perguntar — e precisa saber para não anunciar na tela
+ * uma conexão que não é o que parece.
+ */
 export function listarInstituicoes() {
-  return requisitar<{ instituicoes: InstituicaoOpenFinance[] }>(
+  return requisitar<{ instituicoes: InstituicaoOpenFinance[]; simulado: boolean }>(
     '/grana/open-finance/instituicoes',
   );
 }
@@ -19,10 +26,7 @@ export function listarConexoes() {
 
 /** RF034 — abre o consentimento e devolve para onde mandar o usuário. */
 export function criarConsentimento(instituicaoId: string) {
-  return requisitar<{
-    consentimento: { id: number; status: string; expira_em: string };
-    urlDeAutorizacao: string;
-  }>('/grana/open-finance/consentimentos', {
+  return requisitar<RespostaNovoConsentimento>('/grana/open-finance/consentimentos', {
     metodo: 'POST',
     corpo: { instituicaoId },
   });
@@ -40,10 +44,17 @@ export function simularAutorizacao(consentimentoId: number) {
   );
 }
 
-export function autorizarConsentimento(consentimentoId: number) {
+/**
+ * Confirma a autorização e traz as contas destravadas.
+ *
+ * `idExterno` é o vínculo criado pelo widget do agregador — com ele o backend
+ * troca o id provisório pelo definitivo. Com o provedor simulado não existe, e
+ * o backend ignora.
+ */
+export function autorizarConsentimento(consentimentoId: number, idExterno?: string) {
   return requisitar<{ contas: unknown[] }>(
     `/grana/open-finance/consentimentos/${consentimentoId}/autorizar`,
-    { metodo: 'POST' },
+    { metodo: 'POST', corpo: idExterno ? { idExterno } : {} },
   );
 }
 

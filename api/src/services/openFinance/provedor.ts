@@ -87,6 +87,17 @@ export interface ProvedorOpenFinance {
    */
   readonly idNasceNoCliente: boolean;
 
+  /**
+   * É o simulador?
+   *
+   * Existe para a tela poder dizer a verdade sobre o que ela é. Um app que
+   * anuncia "conexão com seu banco" enquanto fala com dados inventados engana
+   * o usuário; um que anuncia "provedor simulado" quando a integração está
+   * ligada de verdade também. Como a escolha é feita por variável de ambiente
+   * no servidor, o cliente não tem como saber sozinho.
+   */
+  readonly simulado: boolean;
+
   /** SD26 — movimentação das contas consentidas a partir de uma data. */
   listarMovimentacoes(idExterno: string, desde: string): Promise<MovimentacaoExterna[]>;
 
