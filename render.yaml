@@ -67,4 +67,11 @@ services:
       - key: DB_POOL_MAX
         value: '5'
 
+      # PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET não são declaradas aqui de
+      # propósito: sem elas o serviço sobe no provedor simulado, que é um
+      # estado válido. Declará-las como `sync: false` faria todo deploy parar
+      # pedindo valor, inclusive quando a integração real não está em uso.
+      # Para ligar a Pluggy, adicione as duas no painel do Render — o
+      # `openFinanceService` troca de provedor sozinho ao encontrá-las.
+
       # PORT não é declarada: o Render injeta a dele, e `env.ts` já lê de lá.

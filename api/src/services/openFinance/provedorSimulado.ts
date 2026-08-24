@@ -53,6 +53,12 @@ interface Sessao {
 }
 
 export class ProvedorSimulado implements ProvedorOpenFinance {
+  /**
+   * O simulador imita o consentimento canônico do Open Finance, em que o id
+   * existe antes da autorização — ao contrário de um widget de agregador.
+   */
+  readonly idNasceNoCliente = false;
+
   private readonly sessoes = new Map<string, Sessao>();
 
   async listarInstituicoes(): Promise<InstituicaoFinanceira[]> {

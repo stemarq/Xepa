@@ -19,6 +19,14 @@ const conexaoSchema = z.object({
   instituicaoId: z.string().trim().min(1, 'Escolha uma instituição.').max(60),
 });
 
+/**
+ * O id do vínculo no provedor, quando quem o recebe primeiro é o app (widget).
+ * Opcional porque o provedor simulado cria o id na abertura e não precisa dele.
+ */
+const autorizacaoSchema = z.object({
+  idExterno: z.string().trim().min(1).max(200).optional(),
+});
+
 export async function listarInstituicoes(_req: Request, res: Response) {
   res.json({ instituicoes: await openFinanceService.listarInstituicoes() });
 }
@@ -39,7 +47,12 @@ export async function criarConsentimento(req: Request, res: Response) {
 /** RF034 — confirma que o usuário autorizou e traz as contas. */
 export async function autorizarConsentimento(req: Request, res: Response) {
   const usuario = usuarioAutenticado(req);
-  const contas = await openFinanceService.autorizarConsentimento(usuario.id, paramId(req));
+  const { idExterno } = autorizacaoSchema.parse(req.body ?? {});
+  const contas = await openFinanceService.autorizarConsentimento(
+    usuario.id,
+    paramId(req),
+    idExterno,
+  );
   res.json({ contas });
 }
 

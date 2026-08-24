@@ -24,16 +24,30 @@ import {
   type Consentimento,
   type ResumoDaSincronizacao,
 } from '../models/openFinance.js';
+import { randomUUID } from 'node:crypto';
 import { conflict, notFound } from '../utils/errors.js';
 import { withTransaction } from '../db/pool.js';
 import type { ProvedorOpenFinance } from './openFinance/provedor.js';
+import { ProvedorPluggy } from './openFinance/provedorPluggy.js';
 import { ProvedorSimulado } from './openFinance/provedorSimulado.js';
+import { env } from '../config/env.js';
 
 /**
- * O provedor em uso. Trocar por um agregador autorizado é substituir esta
- * linha — nada abaixo dela muda.
+ * O provedor em uso.
+ *
+ * Quem decide é a presença das credenciais, não uma linha editada à mão: com
+ * `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` no ambiente, o Xepa fala com a
+ * Pluggy; sem elas, com o simulador. Assim a suíte, o `dev:memoria` e um clone
+ * recém-baixado continuam rodando sem cadastro em provedor nenhum, e publicar
+ * com integração real é preencher duas variáveis — sem build diferente e sem
+ * alguém lembrar de trocar um import antes do deploy.
+ *
+ * Nada abaixo desta linha sabe qual dos dois está em uso.
  */
-export const provedor: ProvedorOpenFinance = new ProvedorSimulado();
+export const provedor: ProvedorOpenFinance =
+  env.pluggy.clientId && env.pluggy.clientSecret
+    ? new ProvedorPluggy()
+    : new ProvedorSimulado();
 
 /** O escopo que o Xepa pede. Fica visível para o usuário antes do aceite (RF037). */
 const ESCOPO_PADRAO = 'contas,extrato';
@@ -49,7 +63,11 @@ export function listarInstituicoes() {
 export async function criarConsentimento(
   usuarioId: number,
   instituicaoId: string,
-): Promise<{ consentimento: Consentimento; urlDeAutorizacao: string }> {
+): Promise<{
+  consentimento: Consentimento;
+  urlDeAutorizacao: string;
+  tokenDoCliente?: string;
+}> {
   const instituicoes = await provedor.listarInstituicoes();
   const instituicao = instituicoes.find((i) => i.id === instituicaoId);
   if (!instituicao) throw notFound(`Instituição desconhecida: ${instituicaoId}`);
@@ -58,24 +76,52 @@ export async function criarConsentimento(
 
   const consentimento = await consentimentoRepository.inserir(usuarioId, {
     instituicaoFinanceira: instituicao.nome,
-    idExterno: externo.idExterno,
+    // Provisório quando o provedor só cria o vínculo no fim do fluxo. A coluna
+    // é NOT NULL e única por usuário, então precisa de um valor desde já — e
+    // um id nosso, opaco, serve até a autorização trazer o definitivo.
+    idExterno: externo.idExterno ?? `pendente-${randomUUID()}`,
     escopo: ESCOPO_PADRAO,
     expiraEm: externo.expiraEm,
   });
 
-  return { consentimento, urlDeAutorizacao: externo.urlDeAutorizacao };
+  return {
+    consentimento,
+    urlDeAutorizacao: externo.urlDeAutorizacao,
+    ...(externo.tokenDoCliente ? { tokenDoCliente: externo.tokenDoCliente } : {}),
+  };
 }
 
 /** SD25 — o usuário autorizou; traz as contas e ativa o consentimento. */
-export async function autorizarConsentimento(usuarioId: number, id: number) {
+export async function autorizarConsentimento(
+  usuarioId: number,
+  id: number,
+  /**
+   * Id do vínculo no provedor, quando é o cliente quem o recebe primeiro
+   * (widget). Ignorado pelos provedores que criam o id no início.
+   */
+  idExternoDoCliente?: string,
+) {
   const consentimento = await exigirConsentimento(usuarioId, id);
 
   if (consentimento.status === 'revogado') {
     throw conflict('Este consentimento foi revogado. Conecte a instituição de novo.');
   }
 
+  // Nos provedores de widget o id definitivo chega agora, e substitui o
+  // provisório gravado na abertura. Sem ele não há o que consultar.
+  let idExterno = consentimento.id_externo;
+  if (provedor.idNasceNoCliente) {
+    if (!idExternoDoCliente) {
+      throw conflict('Conclua a conexão no aplicativo da instituição antes de continuar.');
+    }
+    if (idExternoDoCliente !== idExterno) {
+      await consentimentoRepository.atualizarIdExterno(consentimento.id, idExternoDoCliente);
+      idExterno = idExternoDoCliente;
+    }
+  }
+
   // Lança 409 se o usuário ainda não passou pela url de autorização.
-  const contasExternas = await provedor.confirmarAutorizacao(consentimento.id_externo);
+  const contasExternas = await provedor.confirmarAutorizacao(idExterno);
 
   await consentimentoRepository.atualizarStatus(consentimento.id, 'ativo');
 

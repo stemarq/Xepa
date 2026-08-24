@@ -140,7 +140,7 @@ Para desenvolver contra a API local, troque `EXPO_PUBLIC_API_URL` e **reinicie o
 - Modelagem: requisitos (RF001–RF040, RN01–RN23, RNF01–RNF19), casos de uso (19), modelo de dados (19 entidades), 28 diagramas de sequência, arquitetura, brand kit.
 - Banco: DDL das 19 entidades com as constraints das RNs, runner de migrations e seeds (avatares, instituições).
 - API: **completa** — scaffold em camadas e os cinco módulos, cobrindo os 24 diagramas de sequência. Conta/Autenticação (SD01–SD05), Despensa (SD06–SD10), Grana (SD11–SD15), Cabeça (SD16–SD20) e Roupa (SD21–SD24).
-- Testes da API: 287 testes (unidade + integração ponta a ponta dos 5 módulos + Open Finance + continuar conectado), rodando sem banco externo.
+- Testes da API: 300 testes (unidade + integração ponta a ponta dos 5 módulos + Open Finance + continuar conectado), rodando sem banco externo.
 - Open Finance (RF034–RF037, SD25–SD27): consentimento, importação de extrato com deduplicação e revogação, sobre um provedor **simulado** trocável.
 - Continuar conectado (RF039, RN23, RNF19, SD28): token de renovação rotacionado no backend e tela de desbloqueio biométrico no app.
 - Cliente: scaffold Expo SDK 57 + expo-router, tema lilás/azul, camada de API, sessão em SecureStore, telas de autenticação e as cinco telas de módulo consumindo a API.
@@ -200,6 +200,12 @@ Categoria de gasto e matéria são **nominais**: a barra é de uma cor só, nunc
 O lilás e o azul do brand **não podem ser duas séries no mesmo gráfico**: ficam a ΔE 1,6 sob protanopia e 6,9 com visão normal (o piso é 15). Onde houver duas séries, use ênfase (uma cor + cinza), como em `LinhaEvolucao`. Valor e rótulo sempre em token de tinta, nunca na cor da série.
 
 ## Open Finance
+
+**Qual provedor roda é decidido pelo ambiente**, não por um import trocado à mão: com `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` preenchidas, `openFinanceService` instancia `ProvedorPluggy`; sem elas, `ProvedorSimulado`. É o que mantém a suíte, o `dev:memoria` e um clone recém-baixado rodando sem cadastro em provedor nenhum.
+
+**A senha do banco não pode passar pelo backend.** A Pluggy tem `POST /items`, que aceita credencial direto, e ela está deliberadamente fora de `provedorPluggy.ts` — usá-la faria a senha atravessar o servidor do Xepa, que é o que a RNF18 proíbe. O caminho é o widget: o backend emite um *connect token* de 30 min, o app abre o widget com ele, e a autenticação acontece no domínio da Pluggy. Há teste garantindo que nenhum campo de credencial sai daqui e que `POST /items` nunca é chamado.
+
+**Dois modelos de consentimento, e a interface comporta os dois.** No Open Finance canônico (e no simulador) o id do consentimento existe *antes* da autorização. Num widget ele nasce no fim, e quem o recebe primeiro é o cliente. Daí `ProvedorOpenFinance.idNasceNoCliente`: quando `true`, o consentimento é gravado com um `id_externo` provisório (`pendente-<uuid>`) e `autorizarConsentimento` exige o id definitivo vindo do app, que substitui o provisório. Sem migration — a coluna já é texto e única por usuário.
 
 O Xepa **não é instituição participante** (RNF18): sem registro no Diretório de Participantes, sem certificado, sem mTLS. Quem falaria com os bancos é um agregador autorizado pelo BCB (Pluggy, Belvo, Klavi). Hoje quem implementa é `services/openFinance/provedorSimulado.ts`.
 

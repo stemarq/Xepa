@@ -52,6 +52,21 @@ export async function buscarPorId(
   return rows[0] ?? null;
 }
 
+/**
+ * Troca o id provisório pelo definitivo do provedor.
+ *
+ * Só acontece com provedor de widget, em que o vínculo nasce no cliente
+ * (`idNasceNoCliente`). A unicidade por usuário continua valendo — dois
+ * consentimentos não podem apontar para o mesmo vínculo lá fora.
+ */
+export async function atualizarIdExterno(
+  id: number,
+  idExterno: string,
+  db: Executor = pool,
+): Promise<void> {
+  await db.query(`UPDATE consentimento SET id_externo = $1 WHERE id = $2`, [idExterno, id]);
+}
+
 export async function atualizarStatus(
   id: number,
   status: StatusConsentimento,

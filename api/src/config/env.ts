@@ -87,6 +87,19 @@ export const env = {
     '',
   ramo: process.env.RENDER_GIT_BRANCH ?? process.env.GIT_BRANCH ?? '',
 
+  /**
+   * Credenciais do agregador de Open Finance (RNF18).
+   *
+   * Vazias é o normal: sem elas o sistema usa o provedor simulado, e é assim
+   * que a suíte, o `dev:memoria` e qualquer clone do repositório rodam sem
+   * cadastro em lugar nenhum. Preenchidas, o Xepa passa a falar com a Pluggy
+   * de verdade — ver `openFinanceService.ts`.
+   */
+  pluggy: {
+    clientId: process.env.PLUGGY_CLIENT_ID ?? '',
+    clientSecret: process.env.PLUGGY_CLIENT_SECRET ?? '',
+  },
+
   mail: {
     host: process.env.SMTP_HOST ?? '',
     port: num('SMTP_PORT', 587),
