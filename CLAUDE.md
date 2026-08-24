@@ -106,6 +106,10 @@ A API está publicada em **https://xepa.onrender.com/api** (Render, plano free) 
 
 O plano free hiberna após ~15 min sem uso: a primeira chamada depois disso demora quase um minuto e, no app, parece travamento.
 
+**Migration roda no deploy** (`buildCommand` do `render.yaml` termina em `npm run db:migrate`). Passou a rodar depois de um deploy que subiu código dependente de coluna nova contra o schema antigo: o login estourava 500 em produção enquanto `/api/saude` respondia verde. Repetir é inócuo — o runner registra em `schema_migrations` e aplica só o que falta.
+
+**`/api/saude` não detecta schema defasado.** Ele diz qual commit está no ar, não se o banco acompanhou. Quando um deploy inclui migration, o commit bater é condição necessária e não suficiente; o teste honesto é chamar uma rota que toque a coluna nova.
+
 **Saber se um deploy subiu**: `curl -s https://xepa.onrender.com/api/saude | jq .commit` e comparar com `git log --oneline -1`. É a única rota pública — as outras exigem sessão, e rota inexistente sob um módulo devolve 401 (o `autenticar` roda antes do roteamento), então 401 não prova nem que a rota existe nem que não existe.
 
 Para desenvolver contra a API local, troque `EXPO_PUBLIC_API_URL` e **reinicie o Metro** — o valor é embutido no bundle, não lido em execução.

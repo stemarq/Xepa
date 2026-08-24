@@ -26,7 +26,19 @@ services:
     # os @types. Sem a flag o tsc roda sem tipo nenhum e o build quebra em
     # ~90 erros de "Cannot find name 'process'" — que parecem erro de código,
     # mas são dependência ausente.
-    buildCommand: npm ci --include=dev && npm run build
+    # O `db:migrate` no fim é o que impede o caso que já aconteceu uma vez:
+    # subir código que depende de uma coluna nova contra um schema velho. O
+    # `/api/saude` não pega isso — ele confirma que o commit subiu, não que o
+    # banco acompanhou, então o healthcheck fica verde e o login estoura 500.
+    #
+    # É seguro repetir: o runner registra o que aplicou em `schema_migrations`
+    # e só roda o que falta, cada arquivo na própria transação. E se o banco
+    # estiver inalcançável, o build falha aqui — melhor do que subir a API
+    # contra um schema que não bate.
+    #
+    # Depende do `--include=dev` acima: o runner roda por tsx, que é
+    # devDependency. Tirar a flag quebra o build e a migration junto.
+    buildCommand: npm ci --include=dev && npm run build && npm run db:migrate
     startCommand: npm start
 
     # A rota já existe e também toca o banco, então um deploy que sobe sem
