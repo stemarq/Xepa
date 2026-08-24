@@ -33,7 +33,9 @@ Junto com a sessão, o login entrega um **token de renovação** (RF039): outro 
 ### `GET /api/saude`
 Verifica a API, a conexão com o banco e **qual versão está no ar**.
 
-→ `200 { "status": "ok", "banco": "ok", "ambiente": "production", "commit": "7299eb9", "ramo": "main" }`
+→ `200 { "status": "ok", "banco": "ok", "ambiente": "production", "commit": "7299eb9", "ramo": "main", "openFinance": "simulado" }`
+
+`openFinance` é `"agregador"` quando as credenciais da Pluggy estão no ambiente e `"simulado"` quando não estão. Está aqui pela mesma razão do commit: as rotas de Open Finance exigem sessão, então "as credenciais chegaram ao servidor?" só se respondia instalando o app. É derivado da presença das chaves e não expõe nenhuma.
 
 `commit` e `ramo` vêm de `RENDER_GIT_COMMIT`/`RENDER_GIT_BRANCH`, injetadas pelo provedor; fora de um deploy vêm `null`, que é "não sei" e não "sem commit".
 

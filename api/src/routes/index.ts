@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
 import { env } from '../config/env.js';
+import * as openFinanceService from '../services/openFinanceService.js';
 import { asyncHandler } from '../middlewares/asyncHandler.js';
 import { contaRoutes } from './contaRoutes.js';
 import { despensaRoutes } from './despensaRoutes.js';
@@ -35,6 +36,16 @@ routes.get(
       // "não sei" é diferente de "sem commit".
       commit: env.commit ? env.commit.slice(0, 7) : null,
       ramo: env.ramo || null,
+      /**
+       * Qual provedor de Open Finance está ativo (RNF18).
+       *
+       * Mesma razão do commit: as rotas de Open Finance exigem sessão, então
+       * "as credenciais do agregador chegaram ao ambiente?" era uma pergunta
+       * que só se respondia instalando o app e olhando a tela. É booleano e
+       * derivado da presença das chaves — não expõe nenhuma delas, e o
+       * repositório já diz em público que o provedor é trocável.
+       */
+      openFinance: openFinanceService.provedor.simulado ? 'simulado' : 'agregador',
     });
   }),
 );
