@@ -36,27 +36,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ATENÇÃO: este workflow ainda NÃO produz um .ipa.
+      # O Xcode não é livre: 26.2 é a única janela que compila.
       #
       # O expo-modules-jsi 57.0.4 (que vem via expo-modules-core, e é a última
-      # da linha do SDK 57) não compila com nenhum Xcode desta imagem:
+      # da linha do SDK 57) esbarra em duas coisas diferentes, e por isso a
+      # versão importa dos dois lados:
       #
       #   26.0        Swift 6.2.0   'weak' must be a mutable variable
       #   26.1/26.1.1 Swift 6.2.1   'weak' must be a mutable variable
-      #   26.2        Swift 6.2.3   type of expression is ambiguous (Date.swift)
-      #   26.3        Swift 6.2.4   type of expression is ambiguous (Date.swift)
+      #   26.2        Swift 6.2.3   ok (com o patch)
+      #   26.3        Swift 6.2.4   ok (com o patch), mas sem ganho
       #
-      # Ele usa `weak let`, aceito só a partir do Swift 6.2.2 — e nas versões
-      # que o aceitam, tropeça em inferência de tipo no
-      # JavaScriptCodable+Date.swift. A imagem não tem nenhum Swift 6.2.2, então
-      # a janela é vazia. Atualizar o expo para 57.0.13 não move o
-      # expo-modules-jsi, que já está na última publicada.
+      # Ele usa `weak let`, aceito só a partir do Swift 6.2.2, o que descarta
+      # tudo abaixo de 26.2. E nas versões que aceitam, tropeçava em inferência
+      # de tipo no JavaScriptCodable+Date.swift — resolvido em app/patches/
+      # (expo-modules-jsi+57.0.4.patch), que o patch-package reaplica no
+      # postinstall. Sai quando o Expo publicar o conserto.
       #
-      # Saídas possíveis, nenhuma aplicada ainda: corrigir a linha do pacote via
-      # patch-package, esperar um patch do Expo, ou usar EAS Build (que exige
-      # conta paga da Apple).
-      #
-      # 26.2 fica como alvo por ser a que chega mais longe: só o Date.swift.
+      # Não baixe o alvo para uma 26.0/26.1 achando que é mais seguro: o patch
+      # não cobre o `weak let`, e são justamente as versões que não compilam.
+
       - name: Selecionar o Xcode
         env:
           XCODE_ALVO: '26.2'
