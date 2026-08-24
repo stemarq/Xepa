@@ -43,6 +43,22 @@ export function DespensaScreen() {
   const [busca, setBusca] = useState('');
   const [emBaixa, setEmBaixa] = useState<Produto | null>(null);
   const [categoriaFiltrada, setCategoriaFiltrada] = useState<string | null>(null);
+  /**
+   * Cobre a ação **e** a recarga da lista que vem depois dela.
+   *
+   * `acao.executando` sozinho deixava uma janela aberta: ele volta a `false`
+   * quando a resposta chega, mas a lista só é substituída quando o
+   * `recarregar` termina. Nesse intervalo o botão do cartão reaparecia
+   * habilitado mostrando a quantidade **antiga**, e um segundo toque mandava
+   * um valor que o estoque já não tinha.
+   *
+   * É por isso que o erro parecia coisa de item fracionado: com o estoque em
+   * 3 kg, tirar 1 do valor velho ainda cabe no novo e nada acontece. Só quando
+   * sobra menos de uma unidade — a cauda fracionada — o valor velho passa do
+   * que restou e a RN07 responde 422.
+   */
+  const [atualizando, setAtualizando] = useState(false);
+  const ocupado = acao.executando || atualizando;
 
   const produtos = estoque.dados?.produtos ?? [];
   const emAlerta = produtos.filter((produto) => produto.emAlerta);
@@ -82,12 +98,17 @@ export function DespensaScreen() {
 
   /** RF010 — entrada sem nota; não passa por preço nem vira gasto. */
   async function repor(produto: Produto, valor: number) {
-    const resultado = await acao.executar(
-      () => despensaApi.registrarEntrada(produto.id, valor),
-      (r) =>
-        r.alertaResolvido ? `"${r.produto.nome}" saiu do alerta de reposição.` : null,
-    );
-    if (resultado) await estoque.recarregar();
+    setAtualizando(true);
+    try {
+      const resultado = await acao.executar(
+        () => despensaApi.registrarEntrada(produto.id, valor),
+        (r) =>
+          r.alertaResolvido ? `"${r.produto.nome}" saiu do alerta de reposição.` : null,
+      );
+      if (resultado) await estoque.recarregar();
+    } finally {
+      setAtualizando(false);
+    }
   }
 
   /**
@@ -101,23 +122,36 @@ export function DespensaScreen() {
   async function remover(produto: Produto) {
     // O cartão sumindo da grade é o retorno; um recado por cima diria o que a
     // tela já está mostrando. Erro continua saindo sozinho, pelo `useAcao`.
-    const removeu = await acao.executar(async () => {
-      await despensaApi.removerProduto(produto.id);
-      return true;
-    });
-    if (removeu) {
-      setEmBaixa(null);
-      await estoque.recarregar();
+    setAtualizando(true);
+    try {
+      const removeu = await acao.executar(async () => {
+        await despensaApi.removerProduto(produto.id);
+        return true;
+      });
+      if (removeu) {
+        setEmBaixa(null);
+        await estoque.recarregar();
+      }
+    } finally {
+      setAtualizando(false);
     }
   }
 
   async function consumir(produto: Produto, valor: number) {
-    const resultado = await acao.executar(
-      () => despensaApi.registrarConsumo(produto.id, valor),
-      // RN08 — o pedido de reposição vem na própria resposta da baixa.
-      (r) => r.alertaReposicao?.mensagem ?? null,
-    );
-    if (resultado) await estoque.recarregar();
+    // `setAtualizando` antes de qualquer `await`: se ficasse depois, haveria um
+    // render com o botão liberado e a lista ainda velha — a própria janela que
+    // este estado existe para fechar.
+    setAtualizando(true);
+    try {
+      const resultado = await acao.executar(
+        () => despensaApi.registrarConsumo(produto.id, valor),
+        // RN08 — o pedido de reposição vem na própria resposta da baixa.
+        (r) => r.alertaReposicao?.mensagem ?? null,
+      );
+      if (resultado) await estoque.recarregar();
+    } finally {
+      setAtualizando(false);
+    }
   }
 
   return (
@@ -196,7 +230,7 @@ export function DespensaScreen() {
       >
         {novoAberto ? (
           <FormularioNovoProduto
-            executando={acao.executando}
+            executando={ocupado}
             aoSalvar={async (dados) => {
               const criado = await acao.executar(() => despensaApi.criarProduto(dados));
               if (criado) {
@@ -252,7 +286,7 @@ export function DespensaScreen() {
               // tirar, e a RN07 recusava toda vez. Tirar o que restou é o que a
               // pessoa quer dizer ao apertar "menos" num item que está no fim.
               aoAgir={
-                produto.quantidadeAtual > 0 && !acao.executando
+                produto.quantidadeAtual > 0 && !ocupado
                   ? () => void consumir(produto, Math.min(1, produto.quantidadeAtual))
                   : undefined
               }
@@ -277,7 +311,7 @@ export function DespensaScreen() {
             */
             key={emBaixa.id}
             produto={emBaixa}
-            ocupado={acao.executando}
+            ocupado={ocupado}
             aoFechar={() => setEmBaixa(null)}
             aoConsumir={(valor) => {
               void consumir(emBaixa, valor);
