@@ -140,7 +140,7 @@ Para desenvolver contra a API local, troque `EXPO_PUBLIC_API_URL` e **reinicie o
 - Modelagem: requisitos (RF001–RF040, RN01–RN23, RNF01–RNF19), casos de uso (19), modelo de dados (19 entidades), 28 diagramas de sequência, arquitetura, brand kit.
 - Banco: DDL das 19 entidades com as constraints das RNs, runner de migrations e seeds (avatares, instituições).
 - API: **completa** — scaffold em camadas e os cinco módulos, cobrindo os 24 diagramas de sequência. Conta/Autenticação (SD01–SD05), Despensa (SD06–SD10), Grana (SD11–SD15), Cabeça (SD16–SD20) e Roupa (SD21–SD24).
-- Testes da API: 285 testes (unidade + integração ponta a ponta dos 5 módulos + Open Finance + continuar conectado), rodando sem banco externo.
+- Testes da API: 287 testes (unidade + integração ponta a ponta dos 5 módulos + Open Finance + continuar conectado), rodando sem banco externo.
 - Open Finance (RF034–RF037, SD25–SD27): consentimento, importação de extrato com deduplicação e revogação, sobre um provedor **simulado** trocável.
 - Continuar conectado (RF039, RN23, RNF19, SD28): token de renovação rotacionado no backend e tela de desbloqueio biométrico no app.
 - Cliente: scaffold Expo SDK 57 + expo-router, tema lilás/azul, camada de API, sessão em SecureStore, telas de autenticação e as cinco telas de módulo consumindo a API.
@@ -210,5 +210,9 @@ Três regras sustentam o módulo, e as três têm teste:
 - **RN19** — a movimentação traz id da instituição, único por conta (`idx_transacao_externa_unica`). Sincronizar duas vezes não mexe no gasto do mês.
 - **RN20** — a mesma compra pela nota fiscal e pelo extrato é **um** gasto. O casamento é por usuário + valor + janela de 3 dias, e **não** por conta: a transação de nota nasce sem `conta_id`, porque o QR Code não diz o meio de pagamento. Exigir conta igual faria a conciliação nunca acontecer.
 - **RN21** — consentimento expira (teto 12 meses) e é revogável; expiração é derivada na leitura (`statusEfetivo`), não há job que carimbe o vencimento. Revogar não apaga o histórico importado.
+
+**O id do consentimento no simulador é aleatório, não sequencial.** Ele precisa ser único no **banco**, que sobrevive ao processo — e não só na instância do provedor. Um contador em memória recomeçava do zero a cada boot do Render, repetia `consent-sim-1` e colidia com `consentimento_externo_unico`, derrubando toda tentativa de conectar com 500. Tem teste de unidade comparando duas instâncias do provedor, que é o que a integração não pega: lá o provedor e o banco nascem juntos.
+
+**Sessão perdida no simulador responde 409, não 404.** O `Map` do provedor esvazia quando o processo cai; o consentimento continua no Postgres e na tela. Para o usuário o banco *está* conectado, então a resposta certa é "reconecte", não "não existe". Some quando entrar um agregador de verdade, onde o consentimento vive do lado dele.
 
 Os dois runners de PGlite (`test/apoio/banco.ts` e `scripts/banco-em-memoria.ts`) leem o diretório de migrations em ordem. Fixar arquivo neles faz a suíte e o modo sem Postgres rodarem contra um schema mais velho que o do sistema.

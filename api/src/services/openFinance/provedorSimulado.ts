@@ -19,6 +19,7 @@
  * mora do lado do agregador (RNF18) e não muda o contrato desta interface.
  */
 
+import { randomUUID } from 'node:crypto';
 import { conflict, notFound } from '../../utils/errors.js';
 import type {
   ConsentimentoExterno,
@@ -53,7 +54,6 @@ interface Sessao {
 
 export class ProvedorSimulado implements ProvedorOpenFinance {
   private readonly sessoes = new Map<string, Sessao>();
-  private sequencia = 0;
 
   async listarInstituicoes(): Promise<InstituicaoFinanceira[]> {
     return INSTITUICOES;
@@ -68,8 +68,14 @@ export class ProvedorSimulado implements ProvedorOpenFinance {
       throw notFound(`Instituição desconhecida: ${instituicaoId}`);
     }
 
-    this.sequencia += 1;
-    const idExterno = `consent-sim-${this.sequencia}`;
+    // Aleatório, e não sequencial: o id precisa ser único no **banco**, que
+    // sobrevive ao processo, e não apenas nesta instância. Um contador que
+    // recomeça do zero a cada boot devolvia `consent-sim-1` de novo depois de
+    // o Render hibernar, colidia com a linha guardada em
+    // `consentimento_externo_unico` e a conexão morria com erro de servidor.
+    // Id de agregador de verdade também é opaco e global — o contador era
+    // infidelidade da simulação, não simplificação.
+    const idExterno = `consent-sim-${randomUUID()}`;
     const expiraEm = new Date();
     expiraEm.setMonth(expiraEm.getMonth() + MESES_DE_VALIDADE);
     // Um dia de folga: a constraint do banco exige expira_em <= criado_em + 12
@@ -126,10 +132,25 @@ export class ProvedorSimulado implements ProvedorOpenFinance {
     this.exigirSessao(idExterno).revogado = true;
   }
 
+  /**
+   * O provedor só conhece o que está na memória desta instância.
+   *
+   * Num agregador de verdade o consentimento vive do lado dele e atravessa
+   * qualquer reinício nosso. Aqui não: o processo cai, o `Map` esvazia, e os
+   * consentimentos que o nosso banco ainda lista deixam de existir para o
+   * provedor. Isso é artefato do simulador, e some quando entrar um agregador
+   * real (RNF18).
+   *
+   * Por isso 409 e não 404: para o usuário o banco *está* conectado — a linha
+   * está lá, a tela mostra. O que ele precisa é reconectar, e a mensagem tem
+   * que dizer isso em vez de afirmar que não existe.
+   */
   private exigirSessao(idExterno: string): Sessao {
     const sessao = this.sessoes.get(idExterno);
     if (!sessao) {
-      throw notFound('Consentimento não encontrado no provedor.');
+      throw conflict(
+        'A conexão com a instituição se perdeu no provedor. Conecte a instituição de novo.',
+      );
     }
     return sessao;
   }
