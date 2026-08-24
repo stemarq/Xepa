@@ -46,6 +46,16 @@ routes.get(
        * repositório já diz em público que o provedor é trocável.
        */
       openFinance: openFinanceService.provedor.simulado ? 'simulado' : 'agregador',
+      /**
+       * Se a lista de instituições inclui os bancos de teste do agregador.
+       *
+       * Mais importante que os outros campos por ter consequência sobre dado
+       * real: sem o modo de teste, quem conecta pelo app conecta o banco de
+       * verdade e traz o extrato de verdade. Faltar a variável é silencioso —
+       * o app fica idêntico, só a lista muda — e é o tipo de engano que só se
+       * descobre com dado pessoal já importado.
+       */
+      openFinanceSandbox: env.pluggy.sandbox,
     });
   }),
 );
