@@ -264,6 +264,18 @@ export function DespensaScreen() {
 
         {emBaixa ? (
           <PainelDeBaixa
+            /*
+              A `key` por item é o que obriga o painel a renascer ao trocar de
+              produto. Sem ela o React reaproveita a instância — mesma posição,
+              mesmo tipo — e o `useState` da quantidade não roda de novo: tocar
+              um item de 5 kg e depois um de 0,26 deixava "1" no campo, que não
+              cabe no segundo. O botão então nascia desabilitado, e o toque
+              simplesmente não fazia nada.
+
+              O caminho pior era silencioso: sair de um item de 0,26 para um de
+              2 kg mantinha "0,26" e dava baixa nesse valor, sem erro nenhum.
+            */
+            key={emBaixa.id}
             produto={emBaixa}
             ocupado={acao.executando}
             aoFechar={() => setEmBaixa(null)}
