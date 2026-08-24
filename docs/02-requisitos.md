@@ -71,6 +71,7 @@ Aplicação voltada a estudantes universitários que estão lidando pela primeir
 | RF031 | O sistema deve notificar o usuário quando uma peça atingir o limite de usos. |
 | RF032 | O sistema deve permitir agendar lavagens e emitir lembretes. |
 | RF033 | O sistema deve consultar o estoque e alertar sobre a falta de sabão e amaciante. |
+| RF039 | O sistema deve manter o usuário conectado entre aberturas do app, sem exigir e-mail e senha a cada vez. O login guarda no aparelho um token de renovação de vida longa, trocado por uma sessão nova quando a anterior expira (RNF09); a troca exige desbloqueio biométrico ou código do aparelho (RNF19). Sair da conta (RF003) e redefinir a senha (RF005) descartam esse token. |
 | RF038 | O sistema deve permitir associar uma foto a cada peça de roupa, tirada na hora ou escolhida da galeria, e permitir trocá-la ou removê-la. A imagem é reduzida no aparelho antes de subir e guardada como miniatura; a peça continua válida sem foto. |
 
 ---
@@ -100,6 +101,7 @@ Aplicação voltada a estudantes universitários que estão lidando pela primeir
 | RN19 | A sincronização de extrato é idempotente: uma movimentação já importada, identificada pelo seu id na instituição, nunca gera uma segunda transação — sincronizar de novo não muda o gasto do mês. |
 | RN20 | Uma compra que chega pela nota fiscal (RF016) e pelo extrato (RF035) é **um** gasto, não dois. Ao sincronizar, uma movimentação de saída que case com uma transação de origem "nota" ainda não conciliada — mesmo usuário, mesmo valor e data dentro de 3 dias — concilia com ela em vez de criar outra. O casamento não exige conta igual: a transação de nota nasce sem conta, porque o QR Code não informa o meio de pagamento; a conciliação é justamente o que descobre por qual conta a compra foi paga. Sem esta regra o gasto do mês (RN11) conta o mesmo dinheiro duas vezes. |
 | RN21 | O consentimento tem escopo e prazo: expira no máximo em 12 meses e pode ser revogado pelo usuário a qualquer momento. Consentimento expirado ou revogado não sincroniza, e revogar não apaga as transações já importadas — elas são histórico financeiro do usuário. |
+| RN23 | O token de renovação (RF039) tem prazo próprio — 30 dias — e é **rotacionado a cada uso**: renovar emite um token novo e queima o anterior, de modo que uma cópia extraída do aparelho deixa de valer assim que o dono abre o app. Vale um por conta, como a sessão. Expirar por inatividade (RNF09) **não** o derruba — é justamente o caso que ele existe para cobrir; derrubam-no o logout (RN03), a redefinição de senha e o próprio vencimento. |
 | RN22 | O QR Code da NFC-e identifica a nota, não o seu conteúdo: ele carrega uma URL do portal da SEFAZ com a chave de acesso e um hash de validação, sem descrição, quantidade ou valor dos produtos. Os itens são obtidos na consulta pública da SEFAZ, que o sistema faz com o conteúdo **completo** do QR — o hash é o que dispensa o captcha; a chave avulsa cai na consulta protegida. O portal varia por estado, então a consulta é por UF (dois primeiros dígitos da chave) e existe onde houver implementação. A consulta é **tentativa, não etapa**: falha de portal, layout alterado, UF sem suporte ou chave digitada à mão levam ao preenchimento manual, que permanece sempre disponível. Em qualquer dos casos o usuário confere os itens antes de entrarem no estoque — o que o mercado registra na nota nem sempre é como ele nomeia o item na despensa. |
 
 ---
@@ -128,7 +130,8 @@ Aplicação voltada a estudantes universitários que estão lidando pela primeir
 | RNF06 | As senhas devem ser armazenadas com hash e salt, nunca em texto puro. |
 | RNF07 | Dados sensíveis (financeiros e pessoais) devem trafegar e ser armazenados de forma criptografada. |
 | RNF08 | O sistema deve estar em conformidade com a LGPD quanto à coleta, uso e armazenamento de dados pessoais. |
-| RNF09 | A sessão deve expirar após 30 minutos de inatividade. |
+| RNF09 | A sessão deve expirar após 30 minutos de inatividade. O usuário não precisa redigitar a senha por causa disso: a sessão é reaberta pelo token de renovação (RF039), atrás do desbloqueio local (RNF19). |
+| RNF19 | O segredo que mantém o usuário conectado (RF039) fica no armazenamento seguro do aparelho (Keychain/Keystore) e só é usado após autenticação local — biometria ou código do aparelho. Sem nenhuma das duas cadastradas, o "continuar conectado" não é oferecido: guardar um segredo de 30 dias num aparelho que qualquer um destrava seria pior do que voltar a pedir a senha. |
 | RNF17 | O acesso a dados via Open Finance depende de consentimento explícito, informado e revogável do usuário (RF034, RF036), com escopo e prazo visíveis antes do aceite — é o que sustenta a base legal exigida pela LGPD (RNF08). |
 | RNF18 | O Xepa não é instituição participante do Open Finance: a integração se dá através de um provedor autorizado pelo Banco Central, isolado atrás de uma interface própria. Nenhuma credencial bancária do usuário trafega ou é armazenada pelo sistema. |
 

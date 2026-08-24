@@ -658,3 +658,58 @@ Repository --> Service: ok
 Service --> Controller: sucesso
 Controller --> Cliente: 204 No Content
 ```
+
+### SD28 — Continuar conectado (RF039, RN23, RNF19)
+
+O caminho que substitui o login quando o app é reaberto. A confirmação da
+sessão guardada vem primeiro: quem voltou em poucos minutos não vê a biometria.
+
+```sequence-diagram
+// SD28 — Continuar conectado
+autoNumber on
+
+Cliente > Cliente [label: "App"]: ler token de sessão do Keychain
+Cliente > Controller: GET /conta/perfil (token guardado)
+alt [label: sessão ainda válida] {
+  Controller --> Cliente: 200 OK (usuario)
+  // nada mais acontece: a janela de 30 min recomeça (RNF09)
+}
+else [label: 401 — sessão expirada por inatividade] {
+  Cliente > Cliente: ler token de renovação do Keychain
+  alt [label: sem token de renovação ou sem biometria cadastrada] {
+    Cliente > Cliente: descartar sessão e abrir tela de login
+  }
+  else [label: continuar conectado disponível] {
+    Cliente > SO [label: "Sistema Operacional"]: autenticar localmente (RNF19)
+    alt [label: cancelado pelo usuário] {
+      SO --> Cliente: recusado
+      Cliente > Cliente: manter tela bloqueada, token preservado
+    }
+    else [label: desbloqueado] {
+      SO --> Cliente: ok
+      Cliente > Controller: POST /conta/renovar (tokenRenovacao)
+      Controller > Service: renovarPorToken(tokenRenovacao)
+      Service > Repository: buscarPorTokenRenovacao(hash)
+      Repository > DB [label: "Banco de Dados"]: SELECT usuario WHERE token_renovacao_hash
+      DB --> Repository: usuario / null
+      Repository --> Service: usuario / null
+      alt [label: token inexistente ou vencido] {
+        Service > Repository: invalidarTokenRenovacao(usuario_id)
+        Service --> Controller: erro 401
+        Controller --> Cliente: 401 Unauthorized
+        Cliente > Cliente: descartar sessão e abrir tela de login
+      }
+      else [label: token válido] {
+        // RN23 — rotação: o token usado é queimado e um novo é emitido
+        Service > Service: gerar token de sessão e novo token de renovação
+        Service > Repository: registrarTokenSessao + registrarTokenRenovacao
+        Repository > DB: UPDATE usuario
+        DB --> Repository: ok
+        Service --> Controller: sessão + renovação
+        Controller --> Cliente: 200 OK (token, tokenRenovacao, usuario)
+        Cliente > Cliente: gravar os dois no Keychain e abrir a banca
+      }
+    }
+  }
+}
+```

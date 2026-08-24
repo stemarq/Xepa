@@ -37,7 +37,8 @@ Home = "a banca"; resumo mensal = "a sacola". Identidade visual: lilás (`#9B7ED
 - **Sabão e amaciante são `PRODUTO`** como os demais (RN13); o alerta de lavanderia (RF033) consulta o estoque.
 - **Importação de notas**: depende de vínculo institucional ativo (RN05) e de a instituição expor integração (a maioria não expõe) — a **entrada manual (RF024) é o caminho principal**.
 - **Escopo completo modelado** — o passo de MVP foi pulado de propósito.
-- **Valores definidos**: senha ≥ 8 com maiúscula, número e especial (RN02); sessão expira em 30 min (RNF09); QR ≤ 5 s (RNF04); disponibilidade 99% (RNF10); Android 10+ / iOS 15+ (RNF12); alerta de orçamento em 80% (RN12).
+- **Sessão curta + renovação longa (RF039)**: a sessão continua morrendo em 30 min de inatividade (RNF09) — o que sobrevive ao app fechado é um **token de renovação** de 30 dias, trocado por sessão nova em `POST /conta/renovar`. São dois segredos distintos: o de sessão vai no `Authorization`, o de renovação vai no **corpo** (no cabeçalho o `autenticar` o trataria como token de sessão). Ver seção própria abaixo.
+- **Valores definidos**: senha ≥ 8 com maiúscula, número e especial (RN02); sessão expira em 30 min (RNF09); token de renovação em 30 dias (RN23); QR ≤ 5 s (RNF04); disponibilidade 99% (RNF10); Android 10+ / iOS 15+ (RNF12); alerta de orçamento em 80% (RN12).
 
 ## Convenções
 - Backend em camadas: Controller (entrada HTTP) → Service (regras de negócio) → Repository (acesso a dados).
@@ -131,17 +132,32 @@ Para desenvolver contra a API local, troque `EXPO_PUBLIC_API_URL` e **reinicie o
 ## Estado atual e próximos passos
 
 **Pronto**
-- Modelagem: requisitos (RF001–RF037, RN01–RN21, RNF01–RNF18), casos de uso (19), modelo de dados (19 entidades), 27 diagramas de sequência, arquitetura, brand kit.
+- Modelagem: requisitos (RF001–RF039, RN01–RN23, RNF01–RNF19), casos de uso (19), modelo de dados (19 entidades), 28 diagramas de sequência, arquitetura, brand kit.
 - Banco: DDL das 19 entidades com as constraints das RNs, runner de migrations e seeds (avatares, instituições).
 - API: **completa** — scaffold em camadas e os cinco módulos, cobrindo os 24 diagramas de sequência. Conta/Autenticação (SD01–SD05), Despensa (SD06–SD10), Grana (SD11–SD15), Cabeça (SD16–SD20) e Roupa (SD21–SD24).
-- Testes da API: 253 testes (unidade + integração ponta a ponta dos 5 módulos + Open Finance), rodando sem banco externo.
+- Testes da API: 278 testes (unidade + integração ponta a ponta dos 5 módulos + Open Finance + continuar conectado), rodando sem banco externo.
 - Open Finance (RF034–RF037, SD25–SD27): consentimento, importação de extrato com deduplicação e revogação, sobre um provedor **simulado** trocável.
+- Continuar conectado (RF039, RN23, RNF19, SD28): token de renovação rotacionado no backend e tela de desbloqueio biométrico no app.
 - Cliente: scaffold Expo SDK 57 + expo-router, tema lilás/azul, camada de API, sessão em SecureStore, telas de autenticação e as cinco telas de módulo consumindo a API.
 - Gráficos: gasto por categoria (RF018) e tempo por matéria (RF028) em `BarrasCategoria`; evolução de notas (RF027) em `LinhaEvolucao`, na tela de detalhe da matéria (`app/materia/[id]`, SD20). Usam `react-native-svg`.
 
 **A fazer**
 - Cliente: notificações locais de lembrete (RF032), tela de detalhe por item da despensa. Testes do app: só `categoriaVisual` por enquanto.
 - Personas e user stories; wireframes/UX.
+
+## Continuar conectado (RF039)
+
+Antes disso o app já guardava a sessão no SecureStore; o que faltava era o que fazer quando ela vencia. Como o token de sessão morre em 30 min (RNF09), reabrir o app depois de qualquer intervalo real caía no login com senha — a sessão estava salva, só não estava viva.
+
+**A regra que sustenta tudo**: expirar por inatividade **não** derruba o token de renovação. Por isso `invalidarTokenSessao` e `invalidarTokenRenovacao` são funções separadas em `usuarioRepository` — juntá-las (ou fazer `resolverSessao` limpar as quatro colunas) apaga o recurso inteiro sem quebrar nenhum teste de sessão. O que derruba a renovação é logout, redefinição de senha e o vencimento de 30 dias.
+
+**RN23 — rotação**: cada renovação queima o token usado. `abrirSessao` no `contaService` é o único lugar que emite o par, e serve tanto ao login quanto à renovação, então rotacionar não é uma etapa que dê para esquecer. No cliente isso vira obrigação: `guardarSessao` **precisa** regravar `CHAVE_RENOVACAO` a cada renovação — guardar o antigo deixa o app com um segredo já queimado, e a falha só aparece na abertura seguinte.
+
+**RNF19 — desbloqueio local**: guardar um segredo de 30 dias muda o modelo de ameaça, então a renovação passa por biometria/código do aparelho (`services/desbloqueio.ts`). `disableDeviceFallback` fica falso de propósito — dedo molhado virando "digite a senha" é exatamente o que a RF039 existe para evitar. Sem biometria nem código cadastrados o recurso não é oferecido.
+
+**Três estados, não dois**: `SessaoContext` passa a ter `bloqueado` entre autenticado e deslogado — há sessão a um toque, mas ainda não é sessão. `autenticado` é `perfil !== null && !bloqueado`: o perfil fica em memória para dar nome à tela de desbloqueio, e é lembrança de quem entrou, não permissão de entrar. Cancelar a biometria **não** descarta nada; só token recusado pelo servidor manda ao login.
+
+A tela de bloqueio substitui o app inteiro (`Rotas` em `app/src/app/_layout.tsx`), não é uma rota: mandar para `/entrar` jogaria fora o "continuar conectado" que acabou de ser encontrado.
 
 ## Foto de peça de roupa (RF038)
 

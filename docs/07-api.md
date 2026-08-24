@@ -24,6 +24,8 @@ Rotas protegidas exigem `Authorization: Bearer <token>`. O token vem do login e 
 
 **RNF09**: a sessão expira com 30 minutos de inatividade, e cada requisição autenticada reinicia a contagem. O logout invalida o token na hora (RN03).
 
+Junto com a sessão, o login entrega um **token de renovação** (RF039): outro valor opaco, também guardado só como SHA-256, com prazo de 30 dias. Ele não autentica requisição nenhuma — serve exclusivamente para `POST /conta/renovar`. É o que permite ao app reabrir a sessão sem pedir a senha de novo; do lado do cliente ele fica no Keychain, atrás de desbloqueio biométrico (RNF19).
+
 ---
 
 ## Saúde
@@ -74,12 +76,28 @@ A conta nasce com as categorias financeiras padrão (Mercado, Moradia, Transport
 
 Corpo: `{ "email": string, "senha": string }`
 
-- `200` → `{ "token": string, "expiraEm": ISO8601, "usuario": … }`
+- `200` → `{ "token": string, "expiraEm": ISO8601, "tokenRenovacao": string, "renovacaoExpiraEm": ISO8601, "usuario": … }`
 - `401` e-mail ou senha incorretos
 
 A resposta é idêntica para e-mail inexistente e senha errada, de propósito: não dá para descobrir quais e-mails têm conta.
 
+### `POST /api/conta/renovar` — SD28 (RF039, RN23)
+
+Corpo: `{ "tokenRenovacao": string }`
+
+Troca o token de renovação por uma sessão nova. **Pública**, e o token vai no corpo e não no `Authorization`: quem chama aqui é justamente quem não tem sessão válida, e um token de renovação no cabeçalho seria tratado como token de sessão pelo `autenticar`.
+
+- `200` → mesmo corpo do login
+- `400` corpo sem `tokenRenovacao`
+- `401` token inexistente, já rotacionado, vencido ou derrubado por logout
+
+**RN23 — rotação.** Cada renovação bem-sucedida emite um token novo e queima o usado; o cliente precisa gravar o que voltou. Repetir a chamada com o token anterior dá `401`, o que também é o que denuncia um token copiado do aparelho: ele vale no máximo até o dono abrir o app.
+
+Expirar por inatividade **não** derrubar o token de renovação é o ponto do recurso: a rota protegida apaga a sessão vencida e o "continuar conectado" fica de pé. Quem o descarta é o logout (RN03), a redefinição de senha e o próprio vencimento de 30 dias.
+
 ### `POST /api/conta/logout` — SD03 (RF003, RN03) 🔒
+
+Invalida a sessão **e** o token de renovação: sair é um pedido explícito de voltar a pedir senha, ao contrário da expiração por inatividade.
 
 - `200` → `{ "mensagem": "Sessão encerrada." }`
 - `401` token ausente, inválido ou já expirado
