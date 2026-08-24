@@ -29,6 +29,7 @@ Home = "a banca"; resumo mensal = "a sacola". Identidade visual: lilás (`#9B7ED
 - **Os itens da nota vêm da SEFAZ, não do QR (RN22)**: o QR carrega chave + hash; os produtos estão na consulta pública, e é o hash que a destrava sem captcha — por isso o app guarda a **URL inteira** lida, não só os 44 dígitos. A consulta é tentativa: `consultada: false` cai no preenchimento manual, que nunca sai de cena. Provedor por UF em `api/src/services/notaFiscal/`; só SP (35) implementado.
 - **Descrição de nota casa com produto por prefixo de token, não por distância de edição** (`notaFiscal/similaridade.ts`): o PDV trunca (`MAION HELLMANNS 500G TRA` = `maionese`), e truncamento preserva o começo da palavra. Duas regras não óbvias sustentam o resto: o truncamento só vale **do lado da nota** (senão `chá` casa com `chantilly`), e a cabeça do produto precisa cair nas duas primeiras palavras da descrição (senão `MARG.QUALY C/SAL` vira reposição de `sal`). Ambas com teste.
 - **Orçamento por categoria, não teto único (RF020, RN17)**: o usuário define um limite por categoria/mês (ex.: R$ 300 mercado, R$ 200 lazer); no máximo um orçamento por categoria por mês.
+- **Baixa não é remoção (RF040)**: `POST /produtos/:id/consumo` desconta quantidade de um item que continua existindo; `DELETE /produtos/:id` tira o item da despensa. O que quebrou, estragou ou entrou errado precisa da segunda — e um item zerado não tem mais o que baixar, então sem ela ficava na lista para sempre. Remover cascateia `movimentacao_estoque`, mas `item_nota.produto_id` é `ON DELETE SET NULL` e `TRANSACAO` não é tocada: apagar da despensa nunca reescreve o gasto do mês (RN11).
 - **Estoque e dinheiro são separados**: a entrada manual (`POST /despensa/produtos/:id/entrada`, RF010) não pede preço e **não** gera `TRANSACAO` — presente, sobra e rateio entram na despensa sem virar gasto. Só nota registra valor pago (RF013). Sem essa rota, repor um item existente exigiria lançar uma nota com preço inventado, que entraria no gasto do mês.
 - **Alerta de estoque configurável por item (RF012, RN08)**: o usuário escolhe quais itens monitorar e a quantidade mínima de cada.
 - **Nota → 1 transação (evita dupla contagem)**: uma nota processada gera exatamente uma `TRANSACAO` (origem="nota"); a relação `NOTA_FISCAL`–`TRANSACAO` é 1:1. O gasto do mês (RN11) sai só de `TRANSACAO`.
@@ -132,10 +133,10 @@ Para desenvolver contra a API local, troque `EXPO_PUBLIC_API_URL` e **reinicie o
 ## Estado atual e próximos passos
 
 **Pronto**
-- Modelagem: requisitos (RF001–RF039, RN01–RN23, RNF01–RNF19), casos de uso (19), modelo de dados (19 entidades), 28 diagramas de sequência, arquitetura, brand kit.
+- Modelagem: requisitos (RF001–RF040, RN01–RN23, RNF01–RNF19), casos de uso (19), modelo de dados (19 entidades), 28 diagramas de sequência, arquitetura, brand kit.
 - Banco: DDL das 19 entidades com as constraints das RNs, runner de migrations e seeds (avatares, instituições).
 - API: **completa** — scaffold em camadas e os cinco módulos, cobrindo os 24 diagramas de sequência. Conta/Autenticação (SD01–SD05), Despensa (SD06–SD10), Grana (SD11–SD15), Cabeça (SD16–SD20) e Roupa (SD21–SD24).
-- Testes da API: 278 testes (unidade + integração ponta a ponta dos 5 módulos + Open Finance + continuar conectado), rodando sem banco externo.
+- Testes da API: 285 testes (unidade + integração ponta a ponta dos 5 módulos + Open Finance + continuar conectado), rodando sem banco externo.
 - Open Finance (RF034–RF037, SD25–SD27): consentimento, importação de extrato com deduplicação e revogação, sobre um provedor **simulado** trocável.
 - Continuar conectado (RF039, RN23, RNF19, SD28): token de renovação rotacionado no backend e tela de desbloqueio biométrico no app.
 - Cliente: scaffold Expo SDK 57 + expo-router, tema lilás/azul, camada de API, sessão em SecureStore, telas de autenticação e as cinco telas de módulo consumindo a API.

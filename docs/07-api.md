@@ -189,6 +189,15 @@ Corpo (ao menos um campo): `nome`, `categoria`, `unidade`, `monitorado`, `quanti
 
 - `200` / `400` / `404` / `409` — mesma semântica da criação
 
+### `DELETE /api/despensa/produtos/:id` — RF040 🔒
+
+Tira o item da despensa de vez. É a saída para o que **não** sai por baixa: o que quebrou, o que estragou, o item cadastrado errado. Dar baixa zera a quantidade mas mantém o item na lista — e um item zerado não tem mais o que baixar, então sem esta rota ele ficava na despensa para sempre.
+
+- `204` sem corpo
+- `404` item inexistente ou de outra conta
+
+O que cai junto e o que fica está no DDL, e é intencional: `movimentacao_estoque` cascateia (entrada e baixa de um item que não existe mais não têm leitor), enquanto `item_nota.produto_id` é `ON DELETE SET NULL` — a linha da nota permanece com descrição, quantidade e valor pago. **`TRANSACAO` não é tocada**: o gasto do mês (RN11) não muda porque um item saiu da despensa.
+
 ### `POST /api/despensa/produtos/:id/consumo` — SD08 (RF010, RN07, RN08)
 
 Corpo: `{ "quantidade": number }` (maior que zero)

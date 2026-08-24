@@ -71,6 +71,7 @@ Aplicação voltada a estudantes universitários que estão lidando pela primeir
 | RF031 | O sistema deve notificar o usuário quando uma peça atingir o limite de usos. |
 | RF032 | O sistema deve permitir agendar lavagens e emitir lembretes. |
 | RF033 | O sistema deve consultar o estoque e alertar sobre a falta de sabão e amaciante. |
+| RF040 | O sistema deve permitir remover um item da despensa. Nem tudo que sai do estoque foi consumido — o que quebrou, estragou ou foi cadastrado errado não sai por baixa (RF010), porque baixar zera a quantidade mas mantém o item na lista. Remover apaga o produto e o histórico de movimentação dele; o que foi pago continua na nota (RF013) e no gasto do mês (RN11). |
 | RF039 | O sistema deve manter o usuário conectado entre aberturas do app, sem exigir e-mail e senha a cada vez. O login guarda no aparelho um token de renovação de vida longa, trocado por uma sessão nova quando a anterior expira (RNF09); a troca exige desbloqueio biométrico ou código do aparelho (RNF19). Sair da conta (RF003) e redefinir a senha (RF005) descartam esse token. |
 | RF038 | O sistema deve permitir associar uma foto a cada peça de roupa, tirada na hora ou escolhida da galeria, e permitir trocá-la ou removê-la. A imagem é reduzida no aparelho antes de subir e guardada como miniatura; a peça continua válida sem foto. |
 
