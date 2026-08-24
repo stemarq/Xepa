@@ -30,6 +30,17 @@ export function criarProduto(dados: {
   return requisitar<{ produto: Produto }>('/despensa/produtos', { metodo: 'POST', corpo: dados });
 }
 
+/**
+ * RF040 — tira o item da despensa de vez.
+ *
+ * Diferente da baixa: baixa desconta quantidade de um item que continua
+ * existindo. Isto é para o que não vai voltar — o pote que quebrou, o que
+ * estragou, o item cadastrado errado. O histórico de compra na nota fica.
+ */
+export function removerProduto(produtoId: number) {
+  return requisitar<void>(`/despensa/produtos/${produtoId}`, { metodo: 'DELETE' });
+}
+
 /** SD08 — baixa de consumo. O backend recusa o que deixaria negativo (RN07). */
 export function registrarConsumo(produtoId: number, quantidade: number) {
   return requisitar<ResultadoConsumo>(`/despensa/produtos/${produtoId}/consumo`, {

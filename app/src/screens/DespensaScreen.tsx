@@ -90,6 +90,27 @@ export function DespensaScreen() {
     if (resultado) await estoque.recarregar();
   }
 
+  /**
+   * RF040 — tira o item da despensa.
+   *
+   * O que sai daqui não é o que foi consumido: é o pote que quebrou, o que
+   * estragou, o item cadastrado errado. Sem isso, um item zerado ficava na
+   * lista para sempre — o botão de baixa some quando não há o que baixar, e
+   * não havia nenhuma outra saída.
+   */
+  async function remover(produto: Produto) {
+    // O cartão sumindo da grade é o retorno; um recado por cima diria o que a
+    // tela já está mostrando. Erro continua saindo sozinho, pelo `useAcao`.
+    const removeu = await acao.executar(async () => {
+      await despensaApi.removerProduto(produto.id);
+      return true;
+    });
+    if (removeu) {
+      setEmBaixa(null);
+      await estoque.recarregar();
+    }
+  }
+
   async function consumir(produto: Produto, valor: number) {
     const resultado = await acao.executar(
       () => despensaApi.registrarConsumo(produto.id, valor),
@@ -254,6 +275,7 @@ export function DespensaScreen() {
               void repor(emBaixa, valor);
               setEmBaixa(null);
             }}
+            aoRemover={() => void remover(emBaixa)}
           />
         ) : null}
       </Secao>
@@ -309,18 +331,57 @@ function PainelDeBaixa({
   aoFechar,
   aoConsumir,
   aoRepor,
+  aoRemover,
 }: {
   produto: Produto;
   ocupado: boolean;
   aoFechar(): void;
   aoConsumir(quantidade: number): void;
   aoRepor(quantidade: number): void;
+  aoRemover(): void;
 }) {
   // Começa no que dá para tirar, não em 1: num item com 0,23 o padrão fixo
   // garantiria erro antes mesmo de a pessoa digitar qualquer coisa.
   const [valor, setValor] = useState(() => quantidade(Math.min(1, produto.quantidadeAtual)));
+  const [confirmandoRemocao, setConfirmandoRemocao] = useState(false);
   const numero = Number(valor.replace(',', '.'));
   const passaDoEstoque = numero > produto.quantidadeAtual;
+
+  /*
+    Remover apaga o item e o histórico de movimentação dele — é decisão, não
+    rotina, e por isso pede o segundo toque. A confirmação troca o conteúdo do
+    painel em vez de abrir um modal: a pergunta nasce onde a pessoa já está
+    olhando, e diz o que se perde e o que fica.
+  */
+  if (confirmandoRemocao) {
+    return (
+      <Cartao acento={cores.erro}>
+        <Texto variante="cartaoNome">Tirar “{produto.nome}” da despensa?</Texto>
+        <Texto variante="corpo" cor={cores.tintaMedia}>
+          O item sai da lista junto com o histórico de entradas e baixas dele. O que você pagou
+          continua na nota e no gasto do mês.
+        </Texto>
+        <View style={estilos.baixa}>
+          <Botao
+            titulo="Remover"
+            aparencia="perigo"
+            compacto
+            carregando={ocupado}
+            aoTocar={aoRemover}
+            estilo={estilos.metade}
+          />
+          <Botao
+            titulo="Cancelar"
+            aparencia="contorno"
+            compacto
+            desabilitado={ocupado}
+            aoTocar={() => setConfirmandoRemocao(false)}
+            estilo={estilos.metade}
+          />
+        </View>
+      </Cartao>
+    );
+  }
 
   return (
     <Cartao acento={cores.modulo.despensa}>
@@ -367,6 +428,22 @@ function PainelDeBaixa({
         carregando={ocupado}
         desabilitado={!(numero > 0)}
         aoTocar={() => aoRepor(numero)}
+      />
+
+      {/*
+        RF040 — a saída para o que não sai por baixa: o pote que quebrou, o que
+        estragou, o item cadastrado errado. Sem isto, um item zerado ficava na
+        despensa para sempre — o botão do cartão some quando não há o que
+        baixar, e não existia nenhuma outra ação.
+      */}
+      <Botao
+        titulo="Remover da despensa"
+        // Vermelho já no ponto de entrada: é a única ação da tela que não dá
+        // para desfazer, e descobrir isso só na confirmação é tarde.
+        aparencia="perigo"
+        compacto
+        desabilitado={ocupado}
+        aoTocar={() => setConfirmandoRemocao(true)}
       />
     </Cartao>
   );
