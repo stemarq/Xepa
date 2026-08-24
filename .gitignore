@@ -28,6 +28,11 @@ ios/
 # eas
 eas.json.local
 
+# build baixado do workflow de IPA (`gh run download`), que despeja na pasta
+# atual — 15 MB indo parar no histórico por um `git add .`
+*.ipa
+xepa-ipa-sem-assinatura/
+
 # misc
 .DS_Store
 *.log
