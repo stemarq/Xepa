@@ -4,6 +4,7 @@ import * as openFinanceService from '../services/openFinanceService.js';
 import { ProvedorSimulado } from '../services/openFinance/provedorSimulado.js';
 import { usuarioAutenticado } from '../middlewares/autenticar.js';
 import { badRequest } from '../utils/errors.js';
+import { env } from '../config/env.js';
 
 /** Entrada HTTP do Open Finance (SD25–SD27). */
 
@@ -16,7 +17,8 @@ function paramId(req: Request): number {
 }
 
 const conexaoSchema = z.object({
-  instituicaoId: z.string().trim().min(1, 'Escolha uma instituição.').max(60),
+  // Opcional: com provedor de widget quem escolhe é o usuário, lá dentro.
+  instituicaoId: z.string().trim().min(1).max(60).optional(),
 });
 
 /**
@@ -25,6 +27,8 @@ const conexaoSchema = z.object({
  */
 const autorizacaoSchema = z.object({
   idExterno: z.string().trim().min(1).max(200).optional(),
+  /** Nome do banco escolhido no widget; só o cliente o conhece neste ponto. */
+  instituicao: z.string().trim().min(1).max(120).optional(),
 });
 
 export async function listarInstituicoes(_req: Request, res: Response) {
@@ -33,6 +37,10 @@ export async function listarInstituicoes(_req: Request, res: Response) {
     // A tela precisa disso para não anunciar o que não é: quem decide o
     // provedor é o ambiente do servidor, e o app não tem como descobrir.
     simulado: openFinanceService.provedor.simulado,
+    // Vazio com widget, e o app precisa saber que é por desenho e não por
+    // falha: a escolha do banco acontece lá dentro, com busca e marca.
+    escolhaNoWidget: openFinanceService.provedor.idNasceNoCliente,
+    sandbox: env.pluggy.sandbox,
   });
 }
 
@@ -52,11 +60,12 @@ export async function criarConsentimento(req: Request, res: Response) {
 /** RF034 — confirma que o usuário autorizou e traz as contas. */
 export async function autorizarConsentimento(req: Request, res: Response) {
   const usuario = usuarioAutenticado(req);
-  const { idExterno } = autorizacaoSchema.parse(req.body ?? {});
+  const { idExterno, instituicao } = autorizacaoSchema.parse(req.body ?? {});
   const contas = await openFinanceService.autorizarConsentimento(
     usuario.id,
     paramId(req),
     idExterno,
+    instituicao,
   );
   res.json({ contas });
 }

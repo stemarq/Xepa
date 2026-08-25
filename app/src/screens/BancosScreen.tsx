@@ -64,6 +64,14 @@ export function BancosScreen() {
   // Enquanto não se sabe, assume simulado: prometer conexão real e entregar
   // dados fictícios é o erro pior dos dois.
   const simulado = painel.dados?.instituicoes.simulado ?? true;
+  /**
+   * Com agregador real a escolha do banco é do widget, que tem busca, marca e
+   * o catálogo inteiro. Desenhar a nossa lista aqui seria um segundo seletor
+   * para a mesma escolha — e o pior dos dois, porque a nossa não filtra nada e
+   * o catálogo real tem centenas de instituições.
+   */
+  const escolhaNoWidget = painel.dados?.instituicoes.escolhaNoWidget ?? false;
+  const sandbox = painel.dados?.instituicoes.sandbox ?? false;
   const jaConectadas = new Set(
     conexoes.filter((c) => c.status === 'ativo').map((c) => c.instituicao),
   );
@@ -72,8 +80,8 @@ export function BancosScreen() {
    * Abre o consentimento e escolhe o caminho do passo do meio pela resposta:
    * com `tokenDoCliente`, o widget do agregador; sem ele, o simulador.
    */
-  async function conectar(instituicaoId: string) {
-    setConectando(instituicaoId);
+  async function conectar(instituicaoId?: string) {
+    setConectando(instituicaoId ?? 'widget');
     const aberto = await acao.executar(() =>
       openFinanceApi.criarConsentimento(instituicaoId),
     );
@@ -104,10 +112,14 @@ export function BancosScreen() {
    * `idExterno` só existe no caminho do widget — é o vínculo que o agregador
    * acabou de criar, e é ele que substitui o id provisório no backend.
    */
-  async function concluirAutorizacao(consentimentoId: number, idExterno?: string) {
+  async function concluirAutorizacao(
+    consentimentoId: number,
+    idExterno?: string,
+    instituicao?: string,
+  ) {
     setEmAutorizacao(null);
     const resultado = await acao.executar(async () => {
-      await openFinanceApi.autorizarConsentimento(consentimentoId, idExterno);
+      await openFinanceApi.autorizarConsentimento(consentimentoId, idExterno, instituicao);
       return openFinanceApi.sincronizar(consentimentoId);
     }, (r) => mensagemDaSincronizacao(r.resumo));
     setConectando(null);
@@ -150,8 +162,9 @@ export function BancosScreen() {
       {emAutorizacao ? (
         <WidgetDoBanco
           connectToken={emAutorizacao.token}
-          aoConcluir={(idExterno) => {
-            void concluirAutorizacao(emAutorizacao.consentimentoId, idExterno);
+          sandbox={sandbox}
+          aoConcluir={(idExterno, instituicao) => {
+            void concluirAutorizacao(emAutorizacao.consentimentoId, idExterno, instituicao);
           }}
           aoCancelar={() => {
             // Desistir não deixa lixo: o consentimento fica pendente e a tela
@@ -227,8 +240,22 @@ export function BancosScreen() {
       </Secao>
 
       <Secao titulo="Conectar">
+        {escolhaNoWidget ? (
+          /*
+            Um botão, não uma lista. Escolher o banco é papel do widget, que
+            faz isso melhor: tem busca, marca e o catálogo inteiro do
+            agregador. A lista daqui repetia a mesma escolha sem filtro nenhum,
+            e com o catálogo real vira um paredão de centenas de linhas.
+          */
+          <Botao
+            titulo="Conectar um banco"
+            carregando={acao.executando}
+            aoTocar={() => void conectar()}
+          />
+        ) : null}
+
         <View style={estilos.grade}>
-          {instituicoes.map((instituicao) => {
+          {(escolhaNoWidget ? [] : instituicoes).map((instituicao) => {
             const conectada = jaConectadas.has(instituicao.nome);
             return (
               <Pressable
@@ -268,8 +295,11 @@ export function BancosScreen() {
             ? 'Provedor simulado: a autorização que normalmente acontece no app do banco está ' +
               'embutida no toque, e os dados são fictícios. Com um agregador autorizado, este ' +
               'passo abre o ambiente da instituição.'
-            : 'A autorização abre o ambiente da instituição, fora do Xepa. Sua senha é digitada ' +
-              'lá e não passa por nós.'}
+            : sandbox
+              ? 'Modo de teste: você escolhe o banco e digita a senha no ambiente do provedor, ' +
+                'mas as instituições são de demonstração e os dados são fictícios.'
+              : 'Você escolhe o banco e digita a senha no ambiente da instituição, fora do ' +
+                'Xepa. Sua senha não passa por nós, e você pode revogar quando quiser.'}
         </Texto>
       </Secao>
     </TelaModulo>

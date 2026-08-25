@@ -15,9 +15,13 @@ import { requisitar } from './cliente';
  * uma conexão que não é o que parece.
  */
 export function listarInstituicoes() {
-  return requisitar<{ instituicoes: InstituicaoOpenFinance[]; simulado: boolean }>(
-    '/grana/open-finance/instituicoes',
-  );
+  return requisitar<{
+    instituicoes: InstituicaoOpenFinance[];
+    simulado: boolean;
+    /** Vem vazia de propósito: quem lista os bancos é o widget do agregador. */
+    escolhaNoWidget: boolean;
+    sandbox: boolean;
+  }>('/grana/open-finance/instituicoes');
 }
 
 export function listarConexoes() {
@@ -25,10 +29,11 @@ export function listarConexoes() {
 }
 
 /** RF034 — abre o consentimento e devolve para onde mandar o usuário. */
-export function criarConsentimento(instituicaoId: string) {
+/** `instituicaoId` só existe quando a escolha é da nossa lista, não do widget. */
+export function criarConsentimento(instituicaoId?: string) {
   return requisitar<RespostaNovoConsentimento>('/grana/open-finance/consentimentos', {
     metodo: 'POST',
-    corpo: { instituicaoId },
+    corpo: instituicaoId ? { instituicaoId } : {},
   });
 }
 
@@ -51,10 +56,20 @@ export function simularAutorizacao(consentimentoId: number) {
  * troca o id provisório pelo definitivo. Com o provedor simulado não existe, e
  * o backend ignora.
  */
-export function autorizarConsentimento(consentimentoId: number, idExterno?: string) {
+export function autorizarConsentimento(
+  consentimentoId: number,
+  idExterno?: string,
+  instituicao?: string,
+) {
   return requisitar<{ contas: unknown[] }>(
     `/grana/open-finance/consentimentos/${consentimentoId}/autorizar`,
-    { metodo: 'POST', corpo: idExterno ? { idExterno } : {} },
+    {
+      metodo: 'POST',
+      corpo: {
+        ...(idExterno ? { idExterno } : {}),
+        ...(instituicao ? { instituicao } : {}),
+      },
+    },
   );
 }
 

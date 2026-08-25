@@ -67,6 +67,18 @@ export async function atualizarIdExterno(
   await db.query(`UPDATE consentimento SET id_externo = $1 WHERE id = $2`, [idExterno, id]);
 }
 
+/** O nome da instituição só se conhece depois do widget (RF034). */
+export async function atualizarInstituicao(
+  id: number,
+  instituicaoFinanceira: string,
+  db: Executor = pool,
+): Promise<void> {
+  await db.query(`UPDATE consentimento SET instituicao_financeira = $1 WHERE id = $2`, [
+    instituicaoFinanceira,
+    id,
+  ]);
+}
+
 export async function atualizarStatus(
   id: number,
   status: StatusConsentimento,

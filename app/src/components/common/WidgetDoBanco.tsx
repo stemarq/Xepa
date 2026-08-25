@@ -10,8 +10,14 @@
  * O `connectToken` vem do backend e vale 30 minutos. Não é sessão do Xepa e
  * não dá acesso a nada nosso: serve só para o widget se identificar.
  *
- * O que volta daqui é o id do vínculo (`item`), e só ele. Nenhuma credencial
- * atravessa este componente — o `onSuccess` da Pluggy entrega o item já criado.
+ * O widget também **é o seletor de banco**: tem busca, marca e o catálogo
+ * inteiro do agregador. Por isso a tela não desenha uma lista própria quando
+ * ele está em uso — seriam dois seletores para a mesma escolha, e o nosso
+ * seria o pior dos dois.
+ *
+ * O que volta daqui é o id do vínculo (`item`) e o nome do banco escolhido.
+ * Nenhuma credencial atravessa este componente — o `onSuccess` da Pluggy
+ * entrega o item já criado.
  */
 
 import { Modal, StyleSheet, View } from 'react-native';
@@ -23,12 +29,14 @@ import { cores, espaco, medida } from '@/theme';
 
 interface Props {
   connectToken: string;
-  /** Chamado com o id do vínculo criado no provedor. */
-  aoConcluir(idExterno: string): void;
+  /** Inclui os bancos de teste do agregador. Vem do servidor, não do app. */
+  sandbox: boolean;
+  /** Chamado com o id do vínculo e o nome do banco escolhido. */
+  aoConcluir(idExterno: string, instituicao: string): void;
   aoCancelar(): void;
 }
 
-export function WidgetDoBanco({ connectToken, aoConcluir, aoCancelar }: Props) {
+export function WidgetDoBanco({ connectToken, sandbox, aoConcluir, aoCancelar }: Props) {
   const insets = useSafeAreaInsets();
 
   return (
@@ -46,8 +54,13 @@ export function WidgetDoBanco({ connectToken, aoConcluir, aoCancelar }: Props) {
 
         <PluggyConnect
           connectToken={connectToken}
-          includeSandbox
-          onSuccess={(dados) => aoConcluir(String(dados.item.id))}
+          // Segue o servidor. Fixo em `true`, o app mostraria bancos de teste
+          // mesmo com a integração real ligada — e a lista é justamente o que
+          // diz ao usuário se ele está conectando algo de verdade.
+          includeSandbox={sandbox}
+          onSuccess={(dados) =>
+            aoConcluir(String(dados.item.id), dados.item.connector?.name ?? 'Instituição')
+          }
           // Fechar pelo X do widget é desistência, e a tela precisa saber para
           // não ficar presa esperando um vínculo que não vem.
           onClose={aoCancelar}

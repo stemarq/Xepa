@@ -55,27 +55,50 @@ const ESCOPO_PADRAO = 'contas,extrato';
 /** De quantos dias para trás a primeira sincronização puxa extrato. */
 const JANELA_INICIAL_EM_DIAS = 90;
 
-export function listarInstituicoes() {
+/**
+ * A lista de instituições, **quando faz sentido existir**.
+ *
+ * Com provedor de widget não faz: o próprio widget já é o seletor, com busca e
+ * marca, e sobre o catálogo inteiro do agregador. Devolver a lista aqui faria
+ * o app desenhar um segundo seletor — pior, porque sem busca — para a mesma
+ * escolha, e ainda traria centenas de registros pela rede sem uso.
+ *
+ * Com o simulador a lista é curta e não há widget, então ela é o seletor.
+ */
+export async function listarInstituicoes() {
+  if (provedor.idNasceNoCliente) return [];
   return provedor.listarInstituicoes();
 }
 
 /** SD25 — abre o consentimento e devolve para onde mandar o usuário. */
+/**
+ * Nome de tela enquanto o usuário não escolheu o banco no widget. Precisa ser
+ * não vazio: a coluna tem CHECK de conteúdo.
+ */
+const INSTITUICAO_A_DEFINIR = 'Conectando…';
+
 export async function criarConsentimento(
   usuarioId: number,
-  instituicaoId: string,
+  instituicaoId?: string,
 ): Promise<{
   consentimento: Consentimento;
   urlDeAutorizacao: string;
   tokenDoCliente?: string;
 }> {
-  const instituicoes = await provedor.listarInstituicoes();
-  const instituicao = instituicoes.find((i) => i.id === instituicaoId);
-  if (!instituicao) throw notFound(`Instituição desconhecida: ${instituicaoId}`);
+  // Com widget não há instituição escolhida ainda — quem escolhe é o usuário,
+  // lá dentro. O nome real chega junto do vínculo, na autorização.
+  let nomeDaInstituicao = INSTITUICAO_A_DEFINIR;
+  if (!provedor.idNasceNoCliente) {
+    const instituicoes = await provedor.listarInstituicoes();
+    const instituicao = instituicoes.find((i) => i.id === instituicaoId);
+    if (!instituicao) throw notFound(`Instituição desconhecida: ${instituicaoId}`);
+    nomeDaInstituicao = instituicao.nome;
+  }
 
-  const externo = await provedor.iniciarConsentimento(instituicaoId, ESCOPO_PADRAO);
+  const externo = await provedor.iniciarConsentimento(instituicaoId ?? '', ESCOPO_PADRAO);
 
   const consentimento = await consentimentoRepository.inserir(usuarioId, {
-    instituicaoFinanceira: instituicao.nome,
+    instituicaoFinanceira: nomeDaInstituicao,
     // Provisório quando o provedor só cria o vínculo no fim do fluxo. A coluna
     // é NOT NULL e única por usuário, então precisa de um valor desde já — e
     // um id nosso, opaco, serve até a autorização trazer o definitivo.
@@ -100,6 +123,8 @@ export async function autorizarConsentimento(
    * (widget). Ignorado pelos provedores que criam o id no início.
    */
   idExternoDoCliente?: string,
+  /** Nome da instituição que o usuário escolheu no widget. */
+  instituicaoDoCliente?: string,
 ) {
   const consentimento = await exigirConsentimento(usuarioId, id);
 
@@ -122,6 +147,12 @@ export async function autorizarConsentimento(
 
   // Lança 409 se o usuário ainda não passou pela url de autorização.
   const contasExternas = await provedor.confirmarAutorizacao(idExterno);
+
+  // O nome só se sabe agora, no caminho do widget — até aqui a conexão
+  // aparecia como "Conectando…" na lista.
+  if (instituicaoDoCliente && instituicaoDoCliente !== consentimento.instituicao_financeira) {
+    await consentimentoRepository.atualizarInstituicao(consentimento.id, instituicaoDoCliente);
+  }
 
   await consentimentoRepository.atualizarStatus(consentimento.id, 'ativo');
 
